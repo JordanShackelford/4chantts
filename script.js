@@ -48,7 +48,11 @@ class FourChanTTS {
         this.setupEventListeners();
         this.loadVoices();
         this.setDefaults();
-        this.setupNuclearAudioPersistence();
+        // ULTRA-AGGRESSIVE: Initialize nuclear audio immediately
+        this.setupNuclearAudioPersistence().then(() => {
+            console.log('🚀 ULTRA: Nuclear audio fully initialized');
+            this.startUltraAggressiveMode();
+        });
         this.detectBatterySaver();
         this.setupMobileOptimizations();
         this.registerServiceWorker();
