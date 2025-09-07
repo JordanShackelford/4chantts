@@ -28,6 +28,17 @@ class FourChanTTS {
         this.availableVoices = []; // Filtered list of good voices
         this.voiceIndex = 0; // Current voice rotation index
         
+        // Nuclear-level audio persistence
+        this.webAudioContext = null;
+        this.audioBuffers = new Map();
+        this.currentAudioSource = null;
+        this.batteryAPI = null;
+        this.powerSaveMode = false;
+        this.audioWorkletNode = null;
+        this.persistentAudioStream = null;
+        this.nuclearAudioEnabled = false;
+        this.batteryWarningShown = false;
+        
         this.initializeElements();
         
         // Get DOM elements for image descriptions
@@ -37,6 +48,8 @@ class FourChanTTS {
         this.setupEventListeners();
         this.loadVoices();
         this.setDefaults();
+        this.setupNuclearAudioPersistence();
+        this.detectBatterySaver();
         this.setupMobileOptimizations();
         this.registerServiceWorker();
         this.setupCloudTTSOption();
@@ -704,6 +717,11 @@ class FourChanTTS {
     }
     
     async speakWithBrowserTTS(text) {
+        // Activate nuclear audio before speech
+        if (this.nuclearAudioEnabled && this.webAudioContext) {
+            await this.activateNuclearAudio();
+        }
+        
         this.currentUtterance = new SpeechSynthesisUtterance(text);
         
         // Set voice based on user variety if available
@@ -734,13 +752,39 @@ class FourChanTTS {
             if (this.audioContext && this.audioContext.state === 'suspended') {
                 this.audioContext.resume();
             }
+            
+            // Start nuclear monitoring
+            if (this.nuclearAudioEnabled) {
+                this.startNuclearMonitoring();
+                console.log('🚀 Nuclear audio monitoring started');
+            }
         };
         
         this.currentUtterance.onend = async () => {
+            // Stop nuclear monitoring
+            if (this.nuclearAudioEnabled) {
+                this.stopNuclearMonitoring();
+            }
             await this.handleSpeechEnd();
         };
         
         this.currentUtterance.onerror = (event) => {
+            console.error('🚨 Speech synthesis error:', event.error);
+            
+            // Stop nuclear monitoring
+            if (this.nuclearAudioEnabled) {
+                this.stopNuclearMonitoring();
+            }
+            
+            // Try nuclear recovery for certain errors
+            if (this.nuclearAudioEnabled && (event.error === 'interrupted' || event.error === 'canceled')) {
+                console.log('🔄 Attempting nuclear recovery...');
+                setTimeout(() => {
+                    this.speakWithBrowserTTS(text);
+                }, 1000);
+                return;
+            }
+            
             this.showError(`Speech synthesis error: ${event.error}`);
             this.stopReading();
         };
@@ -1502,7 +1546,12 @@ class FourChanTTS {
                     if (this.audioContext && this.audioContext.state === 'suspended') {
                         this.audioContext.resume();
                     }
-                }, 1000);
+                    
+                    // Nuclear audio persistence
+                    if (this.nuclearAudioEnabled && this.webAudioContext) {
+                        this.maintainNuclearAudio();
+                    }
+                }, 500); // More frequent checks
             } else {
                 if (backgroundTimer) {
                     clearInterval(backgroundTimer);
@@ -1520,6 +1569,222 @@ class FourChanTTS {
             }
         });
     }
+    
+    async setupNuclearAudioPersistence() {
+        try {
+            // Initialize Web Audio API context
+            this.webAudioContext = new (window.AudioContext || window.webkitAudioContext)({
+                latencyHint: 'playback',
+                sampleRate: 44100
+            });
+            
+            // Create persistent audio stream
+            await this.createPersistentAudioStream();
+            
+            // Setup audio worklet for background processing
+            await this.setupAudioWorklet();
+            
+            // Enable nuclear mode
+            this.nuclearAudioEnabled = true;
+            
+            console.log('🚀 Nuclear audio persistence enabled');
+        } catch (error) {
+            console.warn('Failed to setup nuclear audio persistence:', error);
+        }
+    }
+    
+    async createPersistentAudioStream() {
+        try {
+            // Create a persistent media stream to keep audio thread alive
+            this.persistentAudioStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false,
+                    sampleRate: 44100
+                }
+            });
+            
+            // Connect to Web Audio API
+            const source = this.webAudioContext.createMediaStreamSource(this.persistentAudioStream);
+            const gainNode = this.webAudioContext.createGain();
+            gainNode.gain.setValueAtTime(0, this.webAudioContext.currentTime); // Silent
+            
+            source.connect(gainNode);
+            gainNode.connect(this.webAudioContext.destination);
+            
+            console.log('📡 Persistent audio stream created');
+        } catch (error) {
+            console.warn('Failed to create persistent audio stream:', error);
+        }
+    }
+    
+    async setupAudioWorklet() {
+        try {
+            // Create audio worklet for background processing
+            const workletCode = `
+                class BackgroundAudioProcessor extends AudioWorkletProcessor {
+                    constructor() {
+                        super();
+                        this.keepAlive = true;
+                    }
+                    
+                    process(inputs, outputs, parameters) {
+                        // Keep the audio thread alive
+                        return this.keepAlive;
+                    }
+                }
+                
+                registerProcessor('background-audio-processor', BackgroundAudioProcessor);
+            `;
+            
+            const blob = new Blob([workletCode], { type: 'application/javascript' });
+            const workletURL = URL.createObjectURL(blob);
+            
+            await this.webAudioContext.audioWorklet.addModule(workletURL);
+            
+            this.audioWorkletNode = new AudioWorkletNode(this.webAudioContext, 'background-audio-processor');
+            this.audioWorkletNode.connect(this.webAudioContext.destination);
+            
+            console.log('⚡ Audio worklet initialized');
+        } catch (error) {
+            console.warn('Failed to setup audio worklet:', error);
+        }
+    }
+    
+    maintainNuclearAudio() {
+        if (!this.webAudioContext) return;
+        
+        // Resume audio context if suspended
+        if (this.webAudioContext.state === 'suspended') {
+            this.webAudioContext.resume();
+        }
+        
+        // Ensure persistent stream is active
+        if (this.persistentAudioStream) {
+            const tracks = this.persistentAudioStream.getAudioTracks();
+            tracks.forEach(track => {
+                if (track.readyState !== 'live') {
+                    console.log('🔄 Restarting audio track');
+                    this.createPersistentAudioStream();
+                }
+            });
+        }
+    }
+    
+    async detectBatterySaver() {
+        try {
+            // Check for battery API
+            if ('getBattery' in navigator) {
+                this.batteryAPI = await navigator.getBattery();
+                
+                // Monitor battery saver mode
+                const checkBatterySaver = () => {
+                    const isCharging = this.batteryAPI.charging;
+                    const batteryLevel = this.batteryAPI.level;
+                    
+                    // Detect potential battery saver conditions
+                    this.powerSaveMode = !isCharging && batteryLevel < 0.2;
+                    
+                    if (this.powerSaveMode && !this.batteryWarningShown) {
+                        this.showBatterySaverWarning();
+                        this.batteryWarningShown = true;
+                    }
+                };
+                
+                this.batteryAPI.addEventListener('chargingchange', checkBatterySaver);
+                this.batteryAPI.addEventListener('levelchange', checkBatterySaver);
+                
+                checkBatterySaver();
+            }
+            
+            // Also check for reduced motion preference (often indicates power saving)
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                this.powerSaveMode = true;
+                this.showBatterySaverWarning();
+            }
+            
+        } catch (error) {
+            console.warn('Battery API not available:', error);
+        }
+    }
+    
+    showBatterySaverWarning() {
+         const warning = document.createElement('div');
+         warning.className = 'battery-saver-warning';
+         warning.innerHTML = `
+             <div class="warning-content">
+                 <h3>⚠️ Battery Saver Detected</h3>
+                 <p>Your device appears to be in battery saver mode, which may interrupt background audio playback.</p>
+                 <p><strong>For best results:</strong></p>
+                 <ul>
+                     <li>Disable battery saver mode</li>
+                     <li>Keep the app in foreground</li>
+                     <li>Plug in your device</li>
+                 </ul>
+                 <button onclick="this.parentElement.parentElement.remove()">Got it</button>
+             </div>
+         `;
+         
+         document.body.appendChild(warning);
+         
+         // Auto-remove after 10 seconds
+         setTimeout(() => {
+             if (warning.parentElement) {
+                 warning.remove();
+             }
+         }, 10000);
+     }
+     
+     async activateNuclearAudio() {
+         if (!this.webAudioContext) return;
+         
+         try {
+             // Resume audio context
+             if (this.webAudioContext.state === 'suspended') {
+                 await this.webAudioContext.resume();
+             }
+             
+             // Ensure persistent stream is active
+             if (!this.persistentAudioStream || this.persistentAudioStream.getAudioTracks().length === 0) {
+                 await this.createPersistentAudioStream();
+             }
+             
+             console.log('⚡ Nuclear audio activated');
+         } catch (error) {
+             console.warn('Failed to activate nuclear audio:', error);
+         }
+     }
+     
+     startNuclearMonitoring() {
+         if (!this.nuclearAudioEnabled) return;
+         
+         // Start aggressive monitoring during speech
+         this.nuclearMonitoringInterval = setInterval(() => {
+             if (this.isPlaying) {
+                 // Check if speech synthesis is still working
+                 if (this.synth.paused) {
+                     console.log('🚨 Speech paused, attempting resume');
+                     this.synth.resume();
+                 }
+                 
+                 // Maintain nuclear audio
+                 this.maintainNuclearAudio();
+                 
+                 // Check for battery saver interference
+                 if (this.powerSaveMode) {
+                     console.log('⚠️ Power save mode detected during speech');
+                 }
+             }
+         }, 250); // Very frequent checks during speech
+     }
+     
+     stopNuclearMonitoring() {
+         if (this.nuclearMonitoringInterval) {
+             clearInterval(this.nuclearMonitoringInterval);
+             this.nuclearMonitoringInterval = null;
+         }
+     }
     
     setupBackgroundAudioPersistence() {
         // Keep audio context alive
