@@ -54,10 +54,19 @@ class FourChanTTS {
         // Start ultra-aggressive mode after a short delay to ensure initialization
         setTimeout(() => {
             console.log('🚀 ULTRA: Starting ultra-aggressive mode');
-            try {
+            console.log('Method exists:', typeof this.startUltraAggressiveMode);
+            
+            if (typeof this.startUltraAggressiveMode === 'function') {
                 this.startUltraAggressiveMode();
-            } catch (error) {
-                console.error('Failed to start ultra-aggressive mode:', error);
+            } else {
+                console.log('🔥 ULTRA: Method not found, implementing inline');
+                // Inline ultra-aggressive implementation
+                this.createHiddenAudioElements();
+                this.startContinuousInteractionSimulation();
+                this.setupBrowserSpecificWorkarounds();
+                this.setupUltraWakeLockManagement();
+                this.startAudioContextResurrection();
+                console.log('🔥 ULTRA: Inline ultra-aggressive mode activated');
             }
         }, 1000);
         this.detectBatterySaver();
