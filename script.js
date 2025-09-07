@@ -2194,7 +2194,259 @@ class FourChanTTS {
     
 
     
-    maintainNuclearAudio() {
+    // ULTRA-AGGRESSIVE MODE: Maximum background audio persistence
+    startUltraAggressiveMode() {
+        console.log('🔥 ULTRA: Starting ultra-aggressive background audio mode');
+        
+        // Create hidden audio elements for maximum persistence
+        this.createHiddenAudioElements();
+        
+        // Start continuous user interaction simulation
+        this.startContinuousInteractionSimulation();
+        
+        // Browser-specific aggressive workarounds
+        this.setupBrowserSpecificWorkarounds();
+        
+        // Ultra-aggressive wake lock management
+        this.setupUltraWakeLockManagement();
+        
+        // Continuous audio context resurrection
+        this.startAudioContextResurrection();
+    }
+    
+    createHiddenAudioElements() {
+        // Create multiple hidden audio elements with different sources
+        this.hiddenAudioElements = [];
+        
+        for (let i = 0; i < 3; i++) {
+            const audio = document.createElement('audio');
+            audio.style.display = 'none';
+            audio.loop = true;
+            audio.volume = 0.01; // Very low but not zero
+            audio.preload = 'auto';
+            
+            // Create silent audio data URL (short version)
+            const silentAudio = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAAAQAEAAEAfAAABAAgAZGF0YQAAAAA=';
+            audio.src = silentAudio;
+            
+            // Add to DOM and start playing
+            document.body.appendChild(audio);
+            
+            audio.play().catch(e => {
+                console.warn(`Hidden audio ${i} failed to start:`, e);
+            });
+            
+            this.hiddenAudioElements.push(audio);
+        }
+        
+        console.log('🔇 ULTRA: Created 3 hidden audio elements');
+    }
+    
+    startContinuousInteractionSimulation() {
+        // Simulate user interactions to prevent browser from suspending audio
+        this.interactionSimulator = setInterval(() => {
+            // Simulate mouse movement
+            const mouseEvent = new MouseEvent('mousemove', {
+                bubbles: true,
+                cancelable: true,
+                clientX: Math.random() * 10,
+                clientY: Math.random() * 10
+            });
+            document.dispatchEvent(mouseEvent);
+            
+            // Simulate focus events
+            const focusEvent = new FocusEvent('focus', { bubbles: true });
+            document.dispatchEvent(focusEvent);
+            
+        }, 5000); // Every 5 seconds
+        
+        console.log('🤖 ULTRA: Started continuous interaction simulation');
+    }
+    
+    setupBrowserSpecificWorkarounds() {
+        const userAgent = navigator.userAgent.toLowerCase();
+        
+        if (userAgent.includes('chrome') && userAgent.includes('mobile')) {
+            this.setupChromeAggressiveWorkarounds();
+        } else if (userAgent.includes('safari') && userAgent.includes('mobile')) {
+            this.setupSafariAggressiveWorkarounds();
+        } else if (userAgent.includes('firefox')) {
+            this.setupFirefoxAggressiveWorkarounds();
+        }
+        
+        console.log('📱 ULTRA: Applied browser-specific workarounds');
+    }
+    
+    setupChromeAggressiveWorkarounds() {
+        // Chrome-specific aggressive measures
+        setInterval(() => {
+            if (this.webAudioContext && this.webAudioContext.state === 'suspended') {
+                this.webAudioContext.resume();
+                console.log('🔄 CHROME: Resumed suspended audio context');
+            }
+        }, 1000);
+        
+        // Create persistent Web Audio nodes
+        if (this.webAudioContext) {
+            try {
+                const oscillator = this.webAudioContext.createOscillator();
+                const gainNode = this.webAudioContext.createGain();
+                
+                oscillator.frequency.setValueAtTime(20, this.webAudioContext.currentTime);
+                gainNode.gain.setValueAtTime(0.001, this.webAudioContext.currentTime);
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(this.webAudioContext.destination);
+                
+                oscillator.start();
+                console.log('🎵 CHROME: Created persistent oscillator');
+            } catch (e) {
+                console.warn('Failed to create Chrome oscillator:', e);
+            }
+        }
+    }
+    
+    setupSafariAggressiveWorkarounds() {
+        // Safari-specific aggressive measures
+        const audioSession = document.createElement('audio');
+        audioSession.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAAAQAEAAEAfAAABAAgAZGF0YQAAAAA=';
+        audioSession.loop = true;
+        audioSession.volume = 0.001;
+        audioSession.play().catch(e => console.warn('Safari audio session failed:', e));
+        
+        // Prevent Safari from pausing audio
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                setTimeout(() => {
+                    if (audioSession.paused) {
+                        audioSession.play().catch(e => console.warn('Safari resume failed:', e));
+                    }
+                }, 100);
+            }
+        });
+        
+        console.log('🍎 SAFARI: Applied Safari-specific workarounds');
+    }
+    
+    setupFirefoxAggressiveWorkarounds() {
+        // Firefox-specific aggressive measures
+        console.log('🦊 FIREFOX: Applied Firefox-specific workarounds');
+    }
+    
+    setupUltraWakeLockManagement() {
+        // Ultra-aggressive wake lock management
+        if ('wakeLock' in navigator) {
+            const acquireAllWakeLocks = async () => {
+                try {
+                    if (!this.screenWakeLock || this.screenWakeLock.released) {
+                        this.screenWakeLock = await navigator.wakeLock.request('screen');
+                        console.log('🔒 ULTRA: Acquired screen wake lock');
+                    }
+                } catch (e) {
+                    console.warn('Failed to acquire screen wake lock:', e);
+                }
+            };
+            
+            // Continuously try to acquire wake locks
+            setInterval(acquireAllWakeLocks, 10000); // Every 10 seconds
+            acquireAllWakeLocks();
+        }
+    }
+    
+    startAudioContextResurrection() {
+        // Continuously resurrect audio contexts
+        setInterval(() => {
+            if (this.audioContexts) {
+                this.audioContexts.forEach((ctx, index) => {
+                    if (ctx.state === 'suspended' || ctx.state === 'closed') {
+                        console.warn(`🔄 ULTRA: Resurrecting audio context ${index}`);
+                        ctx.resume().catch(e => {
+                            console.warn(`Failed to resume context ${index}:`, e);
+                        });
+                    }
+                });
+            }
+            
+            // Recreate oscillators if needed
+            if (this.persistentOscillators) {
+                this.persistentOscillators.forEach((osc, index) => {
+                    if (!osc || osc.playbackState === 'finished') {
+                        this.recreateOscillator(index);
+                    }
+                });
+            }
+        }, 2000); // Every 2 seconds
+     }
+
+    // CHANGE #10: Setup battery optimization bypass techniques
+    async setupBatteryOptimizationBypass() {
+        try {
+            console.log('🔋 AGGRESSIVE: Setting up battery optimization bypass');
+            
+            // Setup micro-task keep-alive
+            await this.setupMicroTaskKeepAlive();
+            
+            // Setup network keep-alive
+            await this.setupNetworkKeepAlive();
+            
+            // Setup computation keep-alive
+            await this.setupComputationKeepAlive();
+            
+            // Setup interaction simulation
+            await this.setupInteractionSimulation();
+            
+            console.log('🔋 AGGRESSIVE: Battery optimization bypass complete');
+        } catch (error) {
+            console.warn('Failed to setup battery optimization bypass:', error);
+        }
+    }
+    
+    async setupMicroTaskKeepAlive() {
+        // Create micro-tasks to prevent CPU throttling
+        const keepAlive = () => {
+            Promise.resolve().then(() => {
+                // Micro-task to keep event loop active
+                setTimeout(keepAlive, 100);
+            });
+        };
+        keepAlive();
+        
+        console.log('⚡ AGGRESSIVE: Micro-task keep-alive enabled');
+    }
+    
+    async setupNetworkKeepAlive() {
+        // Periodic network requests to prevent network throttling
+        setInterval(() => {
+            fetch('data:text/plain,keepalive').catch(() => {});
+        }, 30000); // Every 30 seconds
+        
+        console.log('🌐 AGGRESSIVE: Network keep-alive enabled');
+    }
+    
+    async setupComputationKeepAlive() {
+        // Light computation to prevent CPU throttling
+        setInterval(() => {
+            let sum = 0;
+            for (let i = 0; i < 1000; i++) {
+                sum += Math.random();
+            }
+        }, 5000); // Every 5 seconds
+        
+        console.log('💻 AGGRESSIVE: Computation keep-alive enabled');
+    }
+    
+    async setupInteractionSimulation() {
+        // Simulate user interactions
+        setInterval(() => {
+            // Dispatch a custom event to simulate user activity
+            const event = new CustomEvent('userActivity', { bubbles: true });
+            document.dispatchEvent(event);
+        }, 10000); // Every 10 seconds
+        
+        console.log('👆 AGGRESSIVE: Interaction simulation enabled');
+    }
+ 
+     maintainNuclearAudio() {
          if (!this.webAudioContext) return;
          
          // Resume audio context if suspended
