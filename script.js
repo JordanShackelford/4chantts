@@ -49,16 +49,17 @@ class FourChanTTS {
         this.loadVoices();
         this.setDefaults();
         // ULTRA-AGGRESSIVE: Initialize nuclear audio immediately
-        this.setupNuclearAudioPersistence().then(() => {
-            console.log('🚀 ULTRA: Nuclear audio fully initialized');
-            if (typeof this.startUltraAggressiveMode === 'function') {
+        this.setupNuclearAudioPersistence();
+        
+        // Start ultra-aggressive mode after a short delay to ensure initialization
+        setTimeout(() => {
+            console.log('🚀 ULTRA: Starting ultra-aggressive mode');
+            try {
                 this.startUltraAggressiveMode();
-            } else {
-                console.error('startUltraAggressiveMode is not a function');
+            } catch (error) {
+                console.error('Failed to start ultra-aggressive mode:', error);
             }
-        }).catch(error => {
-            console.error('Failed to setup nuclear audio:', error);
-        });
+        }, 1000);
         this.detectBatterySaver();
         this.setupMobileOptimizations();
         this.registerServiceWorker();
