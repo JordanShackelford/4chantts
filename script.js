@@ -1571,34 +1571,31 @@ class FourChanTTS {
     }
     
     async setupNuclearAudioPersistence() {
-         try {
-             // Initialize Web Audio API context with mobile-friendly settings
-             this.webAudioContext = new (window.AudioContext || window.webkitAudioContext)({
-                 latencyHint: 'playback',
-                 sampleRate: 44100
-             });
-             
-             // Ensure context starts in correct state
-             if (this.webAudioContext.state === 'suspended') {
-                 await this.webAudioContext.resume();
-             }
-             
-             // Create persistent silent oscillator
-             await this.createPersistentAudioStream();
-             
-             // Setup audio worklet for background processing
-             await this.setupAudioWorklet();
-             
-             // Enable nuclear mode
-             this.nuclearAudioEnabled = true;
-             
-             console.log('🚀 Nuclear audio persistence enabled (no microphone)');
-         } catch (error) {
-             console.warn('Failed to setup nuclear audio persistence:', error);
-             // Fallback to basic audio context
-             this.setupBasicAudioContext();
-         }
-     }
+          try {
+              // Initialize Web Audio API context with mobile-friendly settings
+              this.webAudioContext = new (window.AudioContext || window.webkitAudioContext)({
+                  latencyHint: 'playback',
+                  sampleRate: 44100
+              });
+              
+              // Ensure context starts in correct state
+              if (this.webAudioContext.state === 'suspended') {
+                  await this.webAudioContext.resume();
+              }
+              
+              // Create persistent silent oscillator (simplified approach)
+              await this.createPersistentAudioStream();
+              
+              // Enable nuclear mode
+              this.nuclearAudioEnabled = true;
+              
+              console.log('🚀 Nuclear audio persistence enabled (simplified)');
+          } catch (error) {
+              console.warn('Failed to setup nuclear audio persistence:', error);
+              // Fallback to basic audio context
+              this.setupBasicAudioContext();
+          }
+      }
      
      setupBasicAudioContext() {
          try {
@@ -1612,6 +1609,8 @@ class FourChanTTS {
      cleanupNuclearAudio() {
          if (this.persistentOscillator) {
              try {
+                 // Remove event handler to prevent recreation
+                 this.persistentOscillator.onended = null;
                  this.persistentOscillator.stop();
                  this.persistentOscillator.disconnect();
              } catch (error) {
@@ -1621,24 +1620,42 @@ class FourChanTTS {
          }
          
          if (this.persistentGain) {
-             this.persistentGain.disconnect();
+             try {
+                 this.persistentGain.disconnect();
+             } catch (error) {
+                 console.warn('Error disconnecting gain:', error);
+             }
              this.persistentGain = null;
          }
      }
     
     async createPersistentAudioStream() {
         try {
+            // Clean up existing oscillator if any
+            this.cleanupNuclearAudio();
+            
+            if (!this.webAudioContext) {
+                console.warn('No audio context available');
+                return;
+            }
+            
             // Create a silent oscillator to keep audio context alive
             this.persistentOscillator = this.webAudioContext.createOscillator();
             this.persistentGain = this.webAudioContext.createGain();
             
             // Set to inaudible frequency and zero volume
             this.persistentOscillator.frequency.setValueAtTime(20000, this.webAudioContext.currentTime); // Above human hearing
-            this.persistentGain.gain.setValueAtTime(0, this.webAudioContext.currentTime); // Silent
+            this.persistentGain.gain.setValueAtTime(0.001, this.webAudioContext.currentTime); // Nearly silent but not zero
             
             // Connect the nodes
             this.persistentOscillator.connect(this.persistentGain);
             this.persistentGain.connect(this.webAudioContext.destination);
+            
+            // Handle oscillator end
+            this.persistentOscillator.onended = () => {
+                console.log('🔄 Oscillator ended, recreating...');
+                setTimeout(() => this.createPersistentAudioStream(), 100);
+            };
             
             // Start the oscillator
             this.persistentOscillator.start();
@@ -1646,41 +1663,12 @@ class FourChanTTS {
             console.log('📡 Silent oscillator created for audio persistence');
         } catch (error) {
             console.warn('Failed to create persistent audio stream:', error);
+            // Retry after a short delay
+            setTimeout(() => this.createPersistentAudioStream(), 1000);
         }
     }
     
-    async setupAudioWorklet() {
-        try {
-            // Create audio worklet for background processing
-            const workletCode = `
-                class BackgroundAudioProcessor extends AudioWorkletProcessor {
-                    constructor() {
-                        super();
-                        this.keepAlive = true;
-                    }
-                    
-                    process(inputs, outputs, parameters) {
-                        // Keep the audio thread alive
-                        return this.keepAlive;
-                    }
-                }
-                
-                registerProcessor('background-audio-processor', BackgroundAudioProcessor);
-            `;
-            
-            const blob = new Blob([workletCode], { type: 'application/javascript' });
-            const workletURL = URL.createObjectURL(blob);
-            
-            await this.webAudioContext.audioWorklet.addModule(workletURL);
-            
-            this.audioWorkletNode = new AudioWorkletNode(this.webAudioContext, 'background-audio-processor');
-            this.audioWorkletNode.connect(this.webAudioContext.destination);
-            
-            console.log('⚡ Audio worklet initialized');
-        } catch (error) {
-            console.warn('Failed to setup audio worklet:', error);
-        }
-    }
+
     
     maintainNuclearAudio() {
          if (!this.webAudioContext) return;
