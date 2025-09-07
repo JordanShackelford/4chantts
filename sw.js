@@ -1,6 +1,6 @@
-// Service Worker for 4chan TTS - Enhanced Background Audio Support
+// CHANGE #6: Enhanced Service Worker for Aggressive Background Audio Support
 
-const CACHE_NAME = '4chan-tts-v2';
+const CACHE_NAME = '4chan-tts-v2.1.3';
 const urlsToCache = [
     '/',
     '/index.html',
@@ -9,18 +9,24 @@ const urlsToCache = [
     '/beep.mp3'
 ];
 
-// Audio state management
+// CHANGE #6: Enhanced audio state management
 let audioState = {
     isPlaying: false,
     currentPostIndex: 0,
     currentThread: null,
-    lastActivity: Date.now()
+    lastActivity: Date.now(),
+    aggressiveMode: true,
+    audioContextCount: 3,
+    oscillatorStates: []
 };
 
-// Keep service worker alive for background audio
+// CHANGE #6: Aggressive background audio management
 let keepAliveInterval = null;
 let backgroundAudioInterval = null;
 let audioKeepAliveTimer = null;
+let aggressiveAudioInterval = null;
+let wakeLockMonitorInterval = null;
+let audioContextMonitorInterval = null;
 
 // Install event - cache resources
 self.addEventListener('install', (event) => {
@@ -85,23 +91,76 @@ self.addEventListener('periodicsync', (event) => {
     }
 });
 
-// Handle background audio synchronization
+// CHANGE #6: Enhanced background audio sync with aggressive management
 async function handleBackgroundAudioSync() {
+    console.log('Service Worker: AGGRESSIVE background audio sync triggered');
+    
     try {
-        // Notify the main app that background sync occurred
+        // Notify main thread to maintain audio aggressively
         const clients = await self.clients.matchAll();
         clients.forEach(client => {
             client.postMessage({
-                type: 'BACKGROUND_SYNC',
+                type: 'AGGRESSIVE_AUDIO_MAINTENANCE',
                 timestamp: Date.now(),
-                audioState: audioState
+                forceResume: true,
+                recreateOscillators: true
             });
         });
         
+        // Start aggressive monitoring if not already running
+        if (!aggressiveAudioInterval) {
+            startAggressiveAudioMonitoring();
+        }
+        
         // Update last activity
         audioState.lastActivity = Date.now();
+        
     } catch (error) {
-        console.error('Background sync failed:', error);
+        console.error('Service Worker: Aggressive background audio sync failed:', error);
+    }
+}
+
+// CHANGE #6: Start aggressive audio monitoring
+function startAggressiveAudioMonitoring() {
+    console.log('Service Worker: Starting aggressive audio monitoring');
+    
+    // Monitor every 1 second when in aggressive mode
+    aggressiveAudioInterval = setInterval(async () => {
+        if (audioState.aggressiveMode) {
+            const clients = await self.clients.matchAll();
+            clients.forEach(client => {
+                client.postMessage({
+                    type: 'AUDIO_HEALTH_CHECK',
+                    timestamp: Date.now(),
+                    requireResponse: true
+                });
+            });
+        }
+    }, 1000);
+    
+    // Monitor audio contexts every 2 seconds
+    audioContextMonitorInterval = setInterval(async () => {
+        const clients = await self.clients.matchAll();
+        clients.forEach(client => {
+            client.postMessage({
+                type: 'AUDIO_CONTEXT_CHECK',
+                timestamp: Date.now(),
+                expectedContexts: audioState.audioContextCount
+            });
+        });
+    }, 2000);
+}
+
+// CHANGE #6: Stop aggressive monitoring
+function stopAggressiveAudioMonitoring() {
+    if (aggressiveAudioInterval) {
+        clearInterval(aggressiveAudioInterval);
+        aggressiveAudioInterval = null;
+    }
+    
+    if (audioContextMonitorInterval) {
+        clearInterval(audioContextMonitorInterval);
+        audioContextMonitorInterval = null;
     }
 }
 

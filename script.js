@@ -1571,31 +1571,61 @@ class FourChanTTS {
     }
     
     async setupNuclearAudioPersistence() {
-          try {
-              // Initialize Web Audio API context with mobile-friendly settings
-              this.webAudioContext = new (window.AudioContext || window.webkitAudioContext)({
-                  latencyHint: 'playback',
-                  sampleRate: 44100
-              });
-              
-              // Ensure context starts in correct state
-              if (this.webAudioContext.state === 'suspended') {
-                  await this.webAudioContext.resume();
-              }
-              
-              // Create persistent silent oscillator (simplified approach)
-              await this.createPersistentAudioStream();
-              
-              // Enable nuclear mode
-              this.nuclearAudioEnabled = true;
-              
-              console.log('🚀 Nuclear audio persistence enabled (simplified)');
-          } catch (error) {
-              console.warn('Failed to setup nuclear audio persistence:', error);
-              // Fallback to basic audio context
-              this.setupBasicAudioContext();
-          }
-      }
+           try {
+               // CHANGE #3: Setup Media Session API first for audio focus
+               this.setupAggressiveMediaSession();
+               
+               // CHANGE #1: Multiple redundant audio contexts for maximum persistence
+               this.audioContexts = [];
+               this.persistentOscillators = [];
+               this.persistentGains = [];
+               
+               // Create 3 redundant audio contexts
+               for (let i = 0; i < 3; i++) {
+                   const context = new (window.AudioContext || window.webkitAudioContext)({
+                       latencyHint: 'playback',
+                       sampleRate: 44100
+                   });
+                   
+                   if (context.state === 'suspended') {
+                       await context.resume();
+                   }
+                   
+                   this.audioContexts.push(context);
+               }
+               
+               this.webAudioContext = this.audioContexts[0]; // Primary context
+               
+               // Create persistent oscillators for each context
+               await this.createMultiplePersistentStreams();
+               
+               // CHANGE #4: Setup Page Visibility API and lifecycle management
+               this.setupPageVisibilityHandling();
+               
+               // CHANGE #5: Setup aggressive wake lock management
+               await this.setupAggressiveWakeLock();
+               
+               // CHANGE #7: Setup service worker communication for aggressive monitoring
+               this.setupServiceWorkerCommunication();
+               
+               // CHANGE #8: Setup multiple fallback audio strategies
+               await this.setupFallbackAudioStrategies();
+               
+               // CHANGE #9: Setup audio focus management
+               await this.setupAudioFocusManagement();
+               
+               // CHANGE #10: Setup battery optimization bypass techniques
+               await this.setupBatteryOptimizationBypass();
+               
+               // Enable nuclear mode
+               this.nuclearAudioEnabled = true;
+               
+               console.log('🚀 AGGRESSIVE: Multiple audio contexts initialized');
+           } catch (error) {
+               console.warn('Failed to setup nuclear audio persistence:', error);
+               this.setupBasicAudioContext();
+           }
+       }
      
      setupBasicAudioContext() {
          try {
@@ -1606,15 +1636,46 @@ class FourChanTTS {
          }
      }
      
+     // CHANGE #2: Enhanced cleanup for multiple audio contexts
      cleanupNuclearAudio() {
+         // Clean up multiple oscillators
+         if (this.persistentOscillators) {
+             this.persistentOscillators.forEach((osc, index) => {
+                 if (osc) {
+                     try {
+                         osc.onended = null;
+                         osc.stop();
+                         osc.disconnect();
+                     } catch (error) {
+                         console.warn(`Error stopping oscillator ${index}:`, error);
+                     }
+                 }
+             });
+             this.persistentOscillators = [];
+         }
+         
+         // Clean up multiple gains
+         if (this.persistentGains) {
+             this.persistentGains.forEach((gain, index) => {
+                 if (gain) {
+                     try {
+                         gain.disconnect();
+                     } catch (error) {
+                         console.warn(`Error disconnecting gain ${index}:`, error);
+                     }
+                 }
+             });
+             this.persistentGains = [];
+         }
+         
+         // Legacy cleanup for backward compatibility
          if (this.persistentOscillator) {
              try {
-                 // Remove event handler to prevent recreation
                  this.persistentOscillator.onended = null;
                  this.persistentOscillator.stop();
                  this.persistentOscillator.disconnect();
              } catch (error) {
-                 console.warn('Error stopping oscillator:', error);
+                 console.warn('Error stopping legacy oscillator:', error);
              }
              this.persistentOscillator = null;
          }
@@ -1623,13 +1684,472 @@ class FourChanTTS {
              try {
                  this.persistentGain.disconnect();
              } catch (error) {
-                 console.warn('Error disconnecting gain:', error);
+                 console.warn('Error disconnecting legacy gain:', error);
              }
              this.persistentGain = null;
          }
      }
-    
-    async createPersistentAudioStream() {
+     
+     // CHANGE #2: Create multiple persistent audio streams
+     async createMultiplePersistentStreams() {
+         this.persistentOscillators = [];
+         this.persistentGains = [];
+         
+         for (let i = 0; i < this.audioContexts.length; i++) {
+             const context = this.audioContexts[i];
+             try {
+                 const oscillator = context.createOscillator();
+                 const gain = context.createGain();
+                 
+                 // Different frequencies for each oscillator to avoid interference
+                 oscillator.frequency.setValueAtTime(20000 + (i * 100), context.currentTime);
+                 gain.gain.setValueAtTime(0.001, context.currentTime);
+                 
+                 oscillator.connect(gain);
+                 gain.connect(context.destination);
+                 
+                 // Auto-recreation on end
+                 oscillator.onended = () => {
+                     console.log(`🔄 Oscillator ${i} ended, recreating...`);
+                     setTimeout(() => this.recreateOscillator(i), 100);
+                 };
+                 
+                 oscillator.start();
+                 
+                 this.persistentOscillators[i] = oscillator;
+                 this.persistentGains[i] = gain;
+                 
+                 console.log(`📡 Silent oscillator ${i} created`);
+             } catch (error) {
+                 console.warn(`Failed to create oscillator ${i}:`, error);
+             }
+         }
+     }
+     
+     // CHANGE #2: Individual oscillator recreation
+     async recreateOscillator(index) {
+         if (!this.audioContexts[index]) return;
+         
+         const context = this.audioContexts[index];
+         try {
+             const oscillator = context.createOscillator();
+             const gain = context.createGain();
+             
+             oscillator.frequency.setValueAtTime(20000 + (index * 100), context.currentTime);
+             gain.gain.setValueAtTime(0.001, context.currentTime);
+             
+             oscillator.connect(gain);
+             gain.connect(context.destination);
+             
+             oscillator.onended = () => {
+                 console.log(`🔄 Oscillator ${index} ended, recreating...`);
+                 setTimeout(() => this.recreateOscillator(index), 100);
+             };
+             
+             oscillator.start();
+             
+             this.persistentOscillators[index] = oscillator;
+             this.persistentGains[index] = gain;
+         } catch (error) {
+             console.warn(`Failed to recreate oscillator ${index}:`, error);
+             setTimeout(() => this.recreateOscillator(index), 1000);
+         }
+     }
+     
+     // CHANGE #3: Aggressive Media Session API setup
+     setupAggressiveMediaSession() {
+         if ('mediaSession' in navigator) {
+             console.log('📱 Setting up AGGRESSIVE Media Session API...');
+             
+             // Set metadata to claim audio session
+             navigator.mediaSession.metadata = new MediaMetadata({
+                 title: '4chan TTS - Background Audio Active',
+                 artist: 'Text-to-Speech Engine',
+                 album: 'Background Processing',
+                 artwork: [
+                     { src: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iOTYiIGhlaWdodD0iOTYiIHZpZXdCb3g9IjAgMCA5NiA5NiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiBmaWxsPSIjMDA3QUZGIi8+Cjx0ZXh0IHg9IjQ4IiB5PSI1NCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjI0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+VFRTPC90ZXh0Pgo8L3N2Zz4K', sizes: '96x96', type: 'image/svg+xml' }
+                 ]
+             });
+             
+             // Set playback state to playing
+             navigator.mediaSession.playbackState = 'playing';
+             
+             // Handle media session actions aggressively
+             navigator.mediaSession.setActionHandler('play', () => {
+                 console.log('📱 Media Session: Play requested - resuming all contexts');
+                 this.resumeAllAudioContexts();
+                 navigator.mediaSession.playbackState = 'playing';
+             });
+             
+             navigator.mediaSession.setActionHandler('pause', () => {
+                 console.log('📱 Media Session: Pause requested - IGNORING to maintain background audio');
+                 // Don\'t pause - keep background audio active
+                 navigator.mediaSession.playbackState = 'playing';
+             });
+             
+             navigator.mediaSession.setActionHandler('stop', () => {
+                 console.log('📱 Media Session: Stop requested - IGNORING to maintain background audio');
+                 // Don\'t stop - keep background audio active
+                 navigator.mediaSession.playbackState = 'playing';
+             });
+             
+             // Additional action handlers
+             navigator.mediaSession.setActionHandler('seekbackward', () => {
+                 console.log('📱 Media Session: Seek backward - maintaining audio');
+             });
+             
+             navigator.mediaSession.setActionHandler('seekforward', () => {
+                 console.log('📱 Media Session: Seek forward - maintaining audio');
+             });
+             
+             console.log('✅ Aggressive Media Session API configured');
+         } else {
+             console.warn('⚠️ Media Session API not supported');
+         }
+     }
+     
+     // CHANGE #3: Resume all audio contexts aggressively
+      async resumeAllAudioContexts() {
+          if (this.audioContexts) {
+              for (let i = 0; i < this.audioContexts.length; i++) {
+                  try {
+                      if (this.audioContexts[i].state === 'suspended') {
+                          await this.audioContexts[i].resume();
+                          console.log(`🔄 Resumed audio context ${i}`);
+                      }
+                  } catch (error) {
+                      console.warn(`Failed to resume audio context ${i}:`, error);
+                  }
+              }
+          }
+      }
+      
+      // CHANGE #4: Aggressive Page Visibility API and lifecycle management
+      setupPageVisibilityHandling() {
+          console.log('👁️ Setting up aggressive page visibility handling...');
+          
+          // Page Visibility API
+          document.addEventListener('visibilitychange', () => {
+              if (document.hidden) {
+                  console.log('📱 Page hidden - MAINTAINING background audio aggressively');
+                  this.handlePageHidden();
+              } else {
+                  console.log('📱 Page visible - ensuring audio contexts are active');
+                  this.handlePageVisible();
+              }
+          });
+          
+          // Beforeunload - prevent page closure if possible
+          window.addEventListener('beforeunload', (e) => {
+              console.log('⚠️ Page attempting to unload - trying to prevent');
+              e.preventDefault();
+              e.returnValue = 'Background audio is active. Are you sure you want to leave?';
+              return 'Background audio is active. Are you sure you want to leave?';
+          });
+          
+          // Pagehide/pageshow events
+          window.addEventListener('pagehide', () => {
+              console.log('📱 Page hide event - maintaining audio');
+              this.handlePageHidden();
+          });
+          
+          window.addEventListener('pageshow', () => {
+              console.log('📱 Page show event - reactivating audio');
+              this.handlePageVisible();
+          });
+          
+          // Focus/blur events
+          window.addEventListener('blur', () => {
+              console.log('📱 Window blur - maintaining background audio');
+              this.handlePageHidden();
+          });
+          
+          window.addEventListener('focus', () => {
+              console.log('📱 Window focus - ensuring audio is active');
+              this.handlePageVisible();
+          });
+          
+          console.log('✅ Page visibility handling configured');
+      }
+      
+      // CHANGE #4: Handle page hidden aggressively
+      async handlePageHidden() {
+          // Immediately resume all audio contexts
+          await this.resumeAllAudioContexts();
+          
+          // Recreate any stopped oscillators
+          if (this.persistentOscillators) {
+              for (let i = 0; i < this.persistentOscillators.length; i++) {
+                  if (!this.persistentOscillators[i] || this.persistentOscillators[i].playbackState === 'finished') {
+                      console.log(`🔄 Recreating oscillator ${i} on page hidden`);
+                      await this.recreateOscillator(i);
+                  }
+              }
+          }
+          
+          // Update media session to playing
+          if ('mediaSession' in navigator) {
+              navigator.mediaSession.playbackState = 'playing';
+          }
+          
+          // Start aggressive monitoring
+          this.startAggressiveMonitoring();
+      }
+      
+      // CHANGE #4: Handle page visible
+      async handlePageVisible() {
+          // Resume all audio contexts
+          await this.resumeAllAudioContexts();
+          
+          // Ensure all oscillators are running
+          if (this.persistentOscillators) {
+              for (let i = 0; i < this.persistentOscillators.length; i++) {
+                  if (!this.persistentOscillators[i]) {
+                      console.log(`🔄 Recreating missing oscillator ${i} on page visible`);
+                      await this.recreateOscillator(i);
+                  }
+              }
+          }
+      }
+      
+      // CHANGE #4: Aggressive monitoring when in background
+      startAggressiveMonitoring() {
+          if (this.aggressiveMonitoringInterval) {
+              clearInterval(this.aggressiveMonitoringInterval);
+          }
+          
+          this.aggressiveMonitoringInterval = setInterval(async () => {
+              if (document.hidden) {
+                  // Check and resume audio contexts every 500ms when hidden
+                  await this.resumeAllAudioContexts();
+                  
+                  // Check oscillators
+                  if (this.persistentOscillators) {
+                      for (let i = 0; i < this.persistentOscillators.length; i++) {
+                          if (!this.persistentOscillators[i]) {
+                              console.log(`🚨 Emergency oscillator ${i} recreation`);
+                              await this.recreateOscillator(i);
+                          }
+                      }
+                  }
+              } else {
+                  // Stop aggressive monitoring when visible
+                  clearInterval(this.aggressiveMonitoringInterval);
+                  this.aggressiveMonitoringInterval = null;
+              }
+          }, 500);
+       }
+       
+       // CHANGE #5: Aggressive wake lock management
+       async setupAggressiveWakeLock() {
+           console.log('🔒 Setting up aggressive wake lock management...');
+           
+           this.wakeLocks = [];
+           
+           try {
+               // Request screen wake lock
+               if ('wakeLock' in navigator) {
+                   const screenWakeLock = await navigator.wakeLock.request('screen');
+                   this.wakeLocks.push(screenWakeLock);
+                   console.log('✅ Screen wake lock acquired');
+                   
+                   screenWakeLock.addEventListener('release', () => {
+                       console.log('⚠️ Screen wake lock released - attempting to reacquire');
+                       this.reacquireWakeLock('screen');
+                   });
+               }
+           } catch (error) {
+               console.warn('Failed to acquire screen wake lock:', error);
+           }
+           
+           // Setup wake lock monitoring
+           this.setupWakeLockMonitoring();
+           
+           // Handle visibility change for wake locks
+           document.addEventListener('visibilitychange', () => {
+               if (!document.hidden) {
+                   // Reacquire wake locks when page becomes visible
+                   this.reacquireAllWakeLocks();
+               }
+           });
+           
+           console.log('✅ Wake lock management configured');
+       }
+       
+       // CHANGE #5: Reacquire specific wake lock
+       async reacquireWakeLock(type) {
+           try {
+               if ('wakeLock' in navigator) {
+                   const wakeLock = await navigator.wakeLock.request(type);
+                   this.wakeLocks.push(wakeLock);
+                   console.log(`🔒 ${type} wake lock reacquired`);
+                   
+                   wakeLock.addEventListener('release', () => {
+                       console.log(`⚠️ ${type} wake lock released again - attempting to reacquire`);
+                       setTimeout(() => this.reacquireWakeLock(type), 1000);
+                   });
+               }
+           } catch (error) {
+               console.warn(`Failed to reacquire ${type} wake lock:`, error);
+               // Retry after delay
+               setTimeout(() => this.reacquireWakeLock(type), 5000);
+           }
+       }
+       
+       // CHANGE #5: Reacquire all wake locks
+       async reacquireAllWakeLocks() {
+           console.log('🔒 Reacquiring all wake locks...');
+           await this.reacquireWakeLock('screen');
+       }
+       
+       // CHANGE #5: Monitor wake locks and reacquire if needed
+       setupWakeLockMonitoring() {
+           setInterval(() => {
+               // Check if we have active wake locks
+               const activeWakeLocks = this.wakeLocks.filter(lock => !lock.released);
+               
+               if (activeWakeLocks.length === 0) {
+                   console.log('🚨 No active wake locks detected - reacquiring');
+                   this.reacquireAllWakeLocks();
+               }
+           }, 10000); // Check every 10 seconds
+       }
+       
+       // CHANGE #5: Release all wake locks (cleanup)
+        releaseAllWakeLocks() {
+            if (this.wakeLocks) {
+                this.wakeLocks.forEach(lock => {
+                    if (!lock.released) {
+                        lock.release();
+                    }
+                });
+                this.wakeLocks = [];
+            }
+        }
+        
+        // CHANGE #7: Setup service worker communication for aggressive monitoring
+        setupServiceWorkerCommunication() {
+            console.log('📡 Setting up service worker communication...');
+            
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.addEventListener('message', (event) => {
+                    this.handleServiceWorkerMessage(event.data);
+                });
+                
+                // Notify service worker that aggressive mode is active
+                this.notifyServiceWorker('AGGRESSIVE_MODE_ACTIVE', {
+                    audioContextCount: this.audioContexts ? this.audioContexts.length : 0,
+                    oscillatorCount: this.persistentOscillators ? this.persistentOscillators.length : 0
+                });
+                
+                console.log('✅ Service worker communication configured');
+            }
+        }
+        
+        // CHANGE #7: Handle service worker messages
+        async handleServiceWorkerMessage(data) {
+            switch (data.type) {
+                case 'AGGRESSIVE_AUDIO_MAINTENANCE':
+                    console.log('📡 SW: Aggressive audio maintenance requested');
+                    await this.resumeAllAudioContexts();
+                    if (data.recreateOscillators) {
+                        await this.recreateAllOscillators();
+                    }
+                    break;
+                    
+                case 'AUDIO_HEALTH_CHECK':
+                    console.log('📡 SW: Audio health check requested');
+                    const healthStatus = await this.performAudioHealthCheck();
+                    if (data.requireResponse) {
+                        this.notifyServiceWorker('AUDIO_HEALTH_RESPONSE', healthStatus);
+                    }
+                    break;
+                    
+                case 'AUDIO_CONTEXT_CHECK':
+                    console.log('📡 SW: Audio context check requested');
+                    await this.verifyAudioContexts(data.expectedContexts);
+                    break;
+                    
+                default:
+                    console.log('📡 SW: Unknown message type:', data.type);
+            }
+        }
+        
+        // CHANGE #7: Recreate all oscillators
+        async recreateAllOscillators() {
+            console.log('🔄 Recreating all oscillators...');
+            if (this.persistentOscillators) {
+                for (let i = 0; i < this.persistentOscillators.length; i++) {
+                    await this.recreateOscillator(i);
+                }
+            }
+        }
+        
+        // CHANGE #7: Perform audio health check
+        async performAudioHealthCheck() {
+            const status = {
+                audioContexts: this.audioContexts ? this.audioContexts.length : 0,
+                activeContexts: 0,
+                oscillators: this.persistentOscillators ? this.persistentOscillators.length : 0,
+                activeOscillators: 0,
+                wakeLocks: this.wakeLocks ? this.wakeLocks.filter(lock => !lock.released).length : 0,
+                timestamp: Date.now()
+            };
+            
+            if (this.audioContexts) {
+                status.activeContexts = this.audioContexts.filter(ctx => ctx.state === 'running').length;
+            }
+            
+            if (this.persistentOscillators) {
+                status.activeOscillators = this.persistentOscillators.filter(osc => osc && osc.playbackState !== 'finished').length;
+            }
+            
+            console.log('🏥 Audio health status:', status);
+            return status;
+        }
+        
+        // CHANGE #7: Verify audio contexts
+        async verifyAudioContexts(expectedCount) {
+            const actualCount = this.audioContexts ? this.audioContexts.length : 0;
+            
+            if (actualCount < expectedCount) {
+                console.log(`🚨 Audio context deficit detected: ${actualCount}/${expectedCount}`);
+                // Recreate missing contexts
+                for (let i = actualCount; i < expectedCount; i++) {
+                    try {
+                        const context = new (window.AudioContext || window.webkitAudioContext)({
+                            latencyHint: 'playback',
+                            sampleRate: 44100
+                        });
+                        
+                        if (context.state === 'suspended') {
+                            await context.resume();
+                        }
+                        
+                        this.audioContexts.push(context);
+                        console.log(`✅ Recreated audio context ${i}`);
+                    } catch (error) {
+                        console.warn(`Failed to recreate audio context ${i}:`, error);
+                    }
+                }
+                
+                // Recreate oscillators for new contexts
+                await this.createMultiplePersistentStreams();
+            }
+        }
+        
+        // CHANGE #7: Notify service worker
+        notifyServiceWorker(type, data = {}) {
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                navigator.serviceWorker.controller.postMessage({
+                    type: type,
+                    data: data,
+                    timestamp: Date.now()
+                });
+            }
+        }
+     
+     async createPersistentAudioStream() {
         try {
             // Clean up existing oscillator if any
             this.cleanupNuclearAudio();
