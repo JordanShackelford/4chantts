@@ -2197,9 +2197,7 @@ class FourChanTTS {
             setTimeout(() => this.createPersistentAudioStream(), 1000);
         }
     }
-    
 
-    
     // ULTRA-AGGRESSIVE MODE: Maximum background audio persistence
     startUltraAggressiveMode() {
         console.log('🔥 ULTRA: Starting ultra-aggressive background audio mode');
