@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4chan TTS Reader</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>4chan TTS Reader</h1>
+            <p>Read 4chan posts with text-to-speech</p>
+            <div class="cors-notice">
+                <p><strong>Note:</strong> This app uses multiple CORS proxy services (corsproxy.io, cors-anywhere, etc.) to access 4chan's API. If you encounter errors, the app will automatically try alternative proxies.</p>
+            </div>
+        </header>
+
+        <div class="controls">
+            <div class="board-selection">
+                <label for="board-select">Board:</label>
+                <select id="board-select">
+                    <option value="g">/g/ - Technology</option>
+                    <option value="b">/b/ - Random</option>
+                    <option value="pol">/pol/ - Politically Incorrect</option>
+                    <option value="v">/v/ - Video Games</option>
+                    <option value="a">/a/ - Anime & Manga</option>
+                    <option value="mu">/mu/ - Music</option>
+                    <option value="fit">/fit/ - Fitness</option>
+                    <option value="biz">/biz/ - Business & Finance</option>
+                </select>
+                <button id="load-threads">Load Threads</button>
+            </div>
+            
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="enable-image-descriptions"> 
+                    Enable AI Image Descriptions
+                </label>
+                <input type="password" id="hf-token" placeholder="Hugging Face Token (optional)" title="Get a free token from huggingface.co/settings/tokens">
+                <span id="image-processing-status" class="processing-status hidden">🤖 Analyzing images...</span>
+            </div>
+
+            <div class="tts-controls">
+                <button id="play-pause">▶️ Play</button>
+                <button id="stop">⏹️ Stop</button>
+                <button id="skip">⏭️ Skip</button>
+                <div class="voice-settings">
+                    <label for="voice-select">Voice:</label>
+                    <select id="voice-select"></select>
+                    <label for="speed-range">Speed:</label>
+                    <input type="range" id="speed-range" min="0.5" max="2" step="0.1" value="1">
+                    <span id="speed-value">1.0x</span>
+                </div>
+            </div>
+
+            <div class="control-group puter-tts-controls">
+                <label>
+                    <input type="checkbox" id="use-puter-tts"> Use Puter.js Neural TTS (Free)
+                </label>
+                <select id="puter-tts-engine" class="engine-select">
+                    <option value="standard">Standard Voice</option>
+                    <option value="neural" selected>Neural Voice (Recommended)</option>
+                    <option value="generative">Generative Voice</option>
+                </select>
+                <small><a href="https://puter.js.org/" target="_blank">About Puter.js</a></small>
+            </div>
+
+            <div class="control-group test-tts">
+                <label for="test-text">Test TTS:</label>
+                <input type="text" id="test-text" placeholder="Enter text to test TTS..." value="Hello, this is a test of the text-to-speech functionality.">
+                <button id="test-speak">🔊 Speak Test</button>
+                <button id="test-token">Test HF Token</button>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="threads-panel">
+                <h3>Threads</h3>
+                <div id="threads-list" class="threads-list">
+                    <p class="placeholder">Select a board and click "Load Threads" to begin</p>
+                </div>
+            </div>
+
+            <div class="posts-panel">
+                <h3>Posts</h3>
+                <div id="posts-list" class="posts-list">
+                    <p class="placeholder">Select a thread to view posts</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="status">
+            <div id="loading" class="loading hidden">Loading...</div>
+            <div id="current-reading" class="current-reading"></div>
+            <div id="error-message" class="error-message hidden"></div>
+        </div>
+    </div>
+
+    <script src="https://js.puter.com/v2/"></script>
+    <script src="script.js"></script>
+</body>
+</html>
