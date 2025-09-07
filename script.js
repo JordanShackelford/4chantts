@@ -725,7 +725,17 @@ class FourChanTTS {
         // Set speed
         this.currentUtterance.rate = parseFloat(this.speedRange.value);
         
+        // Mobile-specific speech synthesis setup
+        this.setupMobileSpeechWorkarounds();
+        
         // Handle utterance events
+        this.currentUtterance.onstart = () => {
+            // Ensure audio context is active when speech starts
+            if (this.audioContext && this.audioContext.state === 'suspended') {
+                this.audioContext.resume();
+            }
+        };
+        
         this.currentUtterance.onend = async () => {
             await this.handleSpeechEnd();
         };
@@ -736,6 +746,51 @@ class FourChanTTS {
         };
         
         this.synth.speak(this.currentUtterance);
+    }
+    
+    setupMobileSpeechWorkarounds() {
+        if (!('ontouchstart' in window)) return;
+        
+        // iOS/mobile specific workarounds for speech synthesis
+        let speechMonitor;
+        
+        const monitorSpeech = () => {
+            if (this.isPlaying && this.synth.paused && !this.synth.pending) {
+                console.log('Speech paused unexpectedly, resuming...');
+                this.synth.resume();
+                
+                // Also resume audio context if suspended
+                if (this.audioContext && this.audioContext.state === 'suspended') {
+                    this.audioContext.resume();
+                }
+            }
+        };
+        
+        // Start monitoring when speech begins
+        const originalOnStart = this.currentUtterance.onstart;
+        this.currentUtterance.onstart = () => {
+            if (originalOnStart) originalOnStart();
+            speechMonitor = setInterval(monitorSpeech, 500);
+        };
+        
+        // Stop monitoring when speech ends
+        const originalOnEnd = this.currentUtterance.onend;
+        this.currentUtterance.onend = async () => {
+            if (speechMonitor) {
+                clearInterval(speechMonitor);
+                speechMonitor = null;
+            }
+            if (originalOnEnd) await originalOnEnd();
+        };
+        
+        const originalOnError = this.currentUtterance.onerror;
+        this.currentUtterance.onerror = (event) => {
+            if (speechMonitor) {
+                clearInterval(speechMonitor);
+                speechMonitor = null;
+            }
+            if (originalOnError) originalOnError(event);
+        };
     }
     
     async speakWithPuterTTS(text) {
@@ -1354,6 +1409,116 @@ class FourChanTTS {
         
         // Prevent page from being suspended on mobile
         this.setupPageSuspensionPrevention();
+        
+        // Additional mobile browser workarounds
+        this.setupMobileBrowserWorkarounds();
+    }
+    
+    setupMobileBrowserWorkarounds() {
+        // Create silent audio context to maintain audio thread
+        this.setupMobileAudioContext();
+        
+        // iOS Safari specific workarounds
+        if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+            this.setupIOSWorkarounds();
+        }
+        
+        // Chrome mobile specific workarounds
+        if (/Chrome/.test(navigator.userAgent) && /Mobile/.test(navigator.userAgent)) {
+            this.setupChromeWorkarounds();
+        }
+        
+        // Generic mobile browser workarounds
+        this.setupGenericMobileWorkarounds();
+    }
+    
+    setupMobileAudioContext() {
+        try {
+            // Create audio context to keep audio thread alive
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Create silent oscillator to maintain audio context
+            this.silentOscillator = this.audioContext.createOscillator();
+            this.gainNode = this.audioContext.createGain();
+            
+            this.silentOscillator.connect(this.gainNode);
+            this.gainNode.connect(this.audioContext.destination);
+            
+            // Set volume to 0 (silent)
+            this.gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+            
+            // Start silent oscillator
+            this.silentOscillator.frequency.setValueAtTime(440, this.audioContext.currentTime);
+            this.silentOscillator.start();
+            
+            console.log('Mobile audio context initialized for background persistence');
+        } catch (error) {
+            console.warn('Failed to setup mobile audio context:', error);
+        }
+    }
+    
+    setupIOSWorkarounds() {
+        // iOS specific background audio workarounds
+        document.addEventListener('touchstart', () => {
+            if (this.audioContext && this.audioContext.state === 'suspended') {
+                this.audioContext.resume();
+            }
+        }, { once: true });
+        
+        // Prevent iOS from pausing audio
+        window.addEventListener('pagehide', (e) => {
+            if (this.isPlaying) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
+    
+    setupChromeWorkarounds() {
+        // Chrome mobile specific workarounds
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && this.isPlaying) {
+                // Force audio context to stay active
+                if (this.audioContext && this.audioContext.state === 'suspended') {
+                    this.audioContext.resume();
+                }
+            }
+        });
+    }
+    
+    setupGenericMobileWorkarounds() {
+        // Generic mobile browser workarounds
+        let backgroundTimer;
+        
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && this.isPlaying) {
+                // Start aggressive background maintenance
+                backgroundTimer = setInterval(() => {
+                    if (this.isPlaying && this.synth.paused) {
+                        this.synth.resume();
+                    }
+                    
+                    // Keep audio context alive
+                    if (this.audioContext && this.audioContext.state === 'suspended') {
+                        this.audioContext.resume();
+                    }
+                }, 1000);
+            } else {
+                if (backgroundTimer) {
+                    clearInterval(backgroundTimer);
+                    backgroundTimer = null;
+                }
+            }
+        });
+        
+        // Prevent page unload when audio is playing
+        window.addEventListener('beforeunload', (e) => {
+            if (this.isPlaying) {
+                e.preventDefault();
+                e.returnValue = 'Audio is currently playing. Are you sure you want to leave?';
+                return e.returnValue;
+            }
+        });
     }
     
     setupBackgroundAudioPersistence() {
