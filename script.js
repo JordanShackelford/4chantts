@@ -51,22 +51,38 @@ class FourChanTTS {
         // ULTRA-AGGRESSIVE: Initialize nuclear audio immediately
         this.setupNuclearAudioPersistence();
         
-        // Start ultra-aggressive mode after a short delay to ensure initialization
-        setTimeout(() => {
-            console.log('🚀 ULTRA: Starting ultra-aggressive mode');
-            console.log('Method exists:', typeof this.startUltraAggressiveMode);
-            
-            if (typeof this.startUltraAggressiveMode === 'function') {
+        // Initialize advanced audio persistence system
+        this.initializeAdvancedAudioPersistence();
+        
+        // Load and start the advanced audio persistence manager
+        setTimeout(async () => {
+            try {
+                console.log('🚀 ADVANCED: Initializing next-generation audio persistence...');
+                
+                // Load the audio persistence manager script
+                await this.loadAudioPersistenceManager();
+                
+                // Initialize the advanced system
+                if (window.AudioPersistenceManager) {
+                    this.audioPersistenceManager = new window.AudioPersistenceManager();
+                    const success = await this.audioPersistenceManager.initialize();
+                    
+                    if (success) {
+                        console.log('✅ ADVANCED: Audio persistence manager initialized successfully');
+                        // Start background audio immediately
+                        await this.audioPersistenceManager.startAudio(new Float32Array(1024).fill(0.001));
+                    } else {
+                        console.warn('⚠️ ADVANCED: Falling back to legacy ultra-aggressive mode');
+                        this.startUltraAggressiveMode();
+                    }
+                } else {
+                    console.warn('⚠️ ADVANCED: AudioPersistenceManager not available, using fallback');
+                    this.startUltraAggressiveMode();
+                }
+            } catch (error) {
+                console.error('❌ ADVANCED: Failed to initialize advanced audio persistence:', error);
+                console.log('🔄 ADVANCED: Falling back to ultra-aggressive mode');
                 this.startUltraAggressiveMode();
-            } else {
-                console.log('🔥 ULTRA: Method not found, implementing inline');
-                // Inline ultra-aggressive implementation
-                this.createHiddenAudioElements();
-                this.startContinuousInteractionSimulation();
-                this.setupBrowserSpecificWorkarounds();
-                this.setupUltraWakeLockManagement();
-                this.startAudioContextResurrection();
-                console.log('🔥 ULTRA: Inline ultra-aggressive mode activated');
             }
         }, 1000);
         this.detectBatterySaver();
@@ -1590,6 +1606,48 @@ class FourChanTTS {
         });
     }
     
+    async initializeAdvancedAudioPersistence() {
+        console.log('🚀 ADVANCED: Initializing advanced audio persistence system...');
+        
+        try {
+            // Initialize service worker for background audio support
+            await this.registerServiceWorker();
+            
+            // Setup basic audio context as fallback
+            this.setupBasicAudioContext();
+            
+            console.log('✅ ADVANCED: Advanced audio persistence system initialized');
+            
+        } catch (error) {
+            console.error('❌ ADVANCED: Failed to initialize advanced audio persistence:', error);
+            // Fallback to nuclear audio persistence
+            await this.setupNuclearAudioPersistence();
+        }
+    }
+    
+    async loadAudioPersistenceManager() {
+        return new Promise((resolve, reject) => {
+            // Check if already loaded
+            if (window.AudioPersistenceManager) {
+                resolve();
+                return;
+            }
+            
+            const script = document.createElement('script');
+            script.src = './audio-persistence-manager.js';
+            script.onload = () => {
+                console.log('✅ ADVANCED: Audio persistence manager script loaded');
+                resolve();
+            };
+            script.onerror = (error) => {
+                console.error('❌ ADVANCED: Failed to load audio persistence manager script:', error);
+                reject(error);
+            };
+            
+            document.head.appendChild(script);
+        });
+    }
+
     async setupNuclearAudioPersistence() {
            try {
                // CHANGE #3: Setup Media Session API first for audio focus

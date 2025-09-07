@@ -1,12 +1,12 @@
-// CHANGE #6: Enhanced Service Worker for Aggressive Background Audio Support
-
-const CACHE_NAME = '4chan-tts-v2.1.3';
+// Service Worker for 4chanTTS with Audio Persistence
+const CACHE_NAME = '4chantts-v1';
 const urlsToCache = [
-    '/',
-    '/index.html',
-    '/styles.css',
-    '/script.js',
-    '/beep.mp3'
+  '/',
+  '/index.html',
+  '/script.js',
+  '/style.css',
+  '/audio-worklet-processor.js',
+  '/audio-persistence-manager.js'
 ];
 
 // CHANGE #6: Enhanced audio state management
