@@ -22,6 +22,12 @@ class FourChanTTS {
         this.lastPuterTTSCall = 0; // Track last API call time for rate limiting
         this.puterTTSRateLimit = 2000; // Minimum 2 seconds between calls
         
+        // Voice variety system
+        this.threadVoices = new Map(); // Map thread IDs to voice indices
+        this.userVoices = new Map(); // Map user IDs to voice indices
+        this.availableVoices = []; // Filtered list of good voices
+        this.voiceIndex = 0; // Current voice rotation index
+        
         this.initializeElements();
         
         // Get DOM elements for image descriptions
@@ -35,6 +41,7 @@ class FourChanTTS {
         this.registerServiceWorker();
         this.setupCloudTTSOption();
         this.checkPuterLibrary();
+        this.setupMediaSession();
         
         // Load voices when they become available
         if (this.synth.onvoiceschanged !== undefined) {
@@ -235,6 +242,13 @@ class FourChanTTS {
         // Use natural voices if available, otherwise fall back to all voices
         const voicesToUse = naturalVoices.length > 0 ? naturalVoices : this.voices;
         
+        // Populate available voices for variety (English voices only)
+        this.availableVoices = voicesToUse.filter(voice => voice.lang.startsWith('en'));
+        if (this.availableVoices.length === 0) {
+            // Fallback to any available voices if no English ones
+            this.availableVoices = voicesToUse.slice(0, 10); // Limit to first 10
+        }
+        
         let bestVoiceIndex = -1;
         
         voicesToUse.forEach((voice, index) => {
@@ -265,6 +279,26 @@ class FourChanTTS {
                 this.voiceSelect.value = originalIndex;
             }
         }
+        
+        console.log(`Loaded ${this.availableVoices.length} voices for variety`);
+    }
+
+    getVoiceForThread(threadNo) {
+        if (!this.threadVoices.has(threadNo)) {
+            const voiceIndex = this.voiceIndex % this.availableVoices.length;
+            this.threadVoices.set(threadNo, voiceIndex);
+            this.voiceIndex++;
+        }
+        return this.availableVoices[this.threadVoices.get(threadNo)];
+    }
+
+    getVoiceForUser(userId) {
+        if (!this.userVoices.has(userId)) {
+            const voiceIndex = this.voiceIndex % this.availableVoices.length;
+            this.userVoices.set(userId, voiceIndex);
+            this.voiceIndex++;
+        }
+        return this.availableVoices[this.userVoices.get(userId)];
     }
 
     async loadThreads() {
@@ -663,10 +697,20 @@ class FourChanTTS {
     async speakWithBrowserTTS(text) {
         this.currentUtterance = new SpeechSynthesisUtterance(text);
         
-        // Set voice
-        const selectedVoiceIndex = this.voiceSelect.value;
-        if (selectedVoiceIndex && this.voices[selectedVoiceIndex]) {
-            this.currentUtterance.voice = this.voices[selectedVoiceIndex];
+        // Set voice based on user variety if available
+        if (this.availableVoices.length > 0 && this.posts && this.posts[this.currentPostIndex]) {
+            const currentPost = this.posts[this.currentPostIndex];
+            const userId = currentPost.name || currentPost.no || 'anonymous';
+            const assignedVoice = this.getVoiceForUser(userId);
+            if (assignedVoice) {
+                this.currentUtterance.voice = assignedVoice;
+            }
+        } else {
+            // Fallback to selected voice
+            const selectedVoiceIndex = this.voiceSelect.value;
+            if (selectedVoiceIndex && this.voices[selectedVoiceIndex]) {
+                this.currentUtterance.voice = this.voices[selectedVoiceIndex];
+            }
         }
         
         // Set speed
@@ -1094,9 +1138,6 @@ class FourChanTTS {
     }
 
     processPostReferences(text, currentPostIndex) {
-        // Store original text for reference checking
-        const originalText = this.posts[currentPostIndex]?.comment || '';
-        
         // Remove various 4chan reference patterns
         text = text.replace(/>>(\d+)/g, ''); // >>123456789
         text = text.replace(/\b\d{8,}\b/g, ''); // Long number strings (8+ digits)
@@ -1105,58 +1146,8 @@ class FourChanTTS {
         text = text.replace(/>>>/g, ''); // >>> markers
         text = text.replace(/\s+/g, ' '); // Clean up extra whitespace
         
-        // If the post is short after removing references, try to add context
-        const cleanText = text.trim();
-        if (cleanText.length > 0 && cleanText.length < 100) {
-            // Check if this post was originally referencing another post
-            const referencedPostMatch = originalText.match(/>>(\d+)/);
-            
-            if (referencedPostMatch) {
-                const referencedPostNo = referencedPostMatch[1];
-                const referencedPost = this.posts.find(p => p.no.toString() === referencedPostNo);
-                
-                if (referencedPost && referencedPost.comment) {
-                    // Initialize tracking structures
-                    if (!this.recentlyReadPosts) this.recentlyReadPosts = new Set();
-                    if (!this.postReferenceCount) this.postReferenceCount = new Map();
-                    if (!this.postSummaries) this.postSummaries = new Map();
-                    
-                    // Track how many times this post has been referenced
-                    const currentCount = this.postReferenceCount.get(referencedPostNo) || 0;
-                    this.postReferenceCount.set(referencedPostNo, currentCount + 1);
-                    
-                    // Always use summaries instead of reading post numbers
-                    let summary = this.postSummaries.get(referencedPostNo);
-                    if (!summary) {
-                        summary = this.createPostSummary(referencedPost.comment);
-                        this.postSummaries.set(referencedPostNo, summary);
-                    }
-                    
-                    // Check if we've already read this referenced post recently
-                    if (this.recentlyReadPosts.has(referencedPostNo)) {
-                        // Use summary for frequently referenced posts
-                        if (currentCount >= 2) {
-                            return `Referencing frequently mentioned post about ${summary}. This person replies: ${cleanText}`;
-                        } else {
-                            return `Referencing previous post about ${summary}. This person replies: ${cleanText}`;
-                        }
-                    } else {
-                        // For first-time references, provide more context but still use summary
-                        const referencedText = this.simplifyUrls(referencedPost.comment);
-                        this.recentlyReadPosts.add(referencedPostNo);
-                        
-                        // If the referenced text is short, use it directly, otherwise use summary
-                        if (referencedText.length <= 100) {
-                            return `Referencing previous post: ${referencedText}. This person replies: ${cleanText}`;
-                        } else {
-                            return `Referencing previous post about ${summary}. This person replies: ${cleanText}`;
-                        }
-                    }
-                }
-            }
-        }
-        
-        return cleanText;
+        // Return the clean text without any reference context
+        return text.trim();
     }
     
     createPostSummary(text) {
@@ -1390,7 +1381,52 @@ class FourChanTTS {
         // Re-request wake lock if lost
         this.requestWakeLock();
     }
-    
+
+    setupMediaSession() {
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: '4chan TTS Reader',
+                artist: 'Reading Posts',
+                album: this.currentBoard || 'Board',
+                artwork: [
+                    { src: '/icon-96x96.png', sizes: '96x96', type: 'image/png' },
+                    { src: '/icon-128x128.png', sizes: '128x128', type: 'image/png' },
+                    { src: '/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+                    { src: '/icon-256x256.png', sizes: '256x256', type: 'image/png' },
+                    { src: '/icon-384x384.png', sizes: '384x384', type: 'image/png' },
+                    { src: '/icon-512x512.png', sizes: '512x512', type: 'image/png' }
+                ]
+            });
+
+            navigator.mediaSession.setActionHandler('play', () => {
+                if (this.isPaused) {
+                    this.togglePlayPause();
+                }
+            });
+
+            navigator.mediaSession.setActionHandler('pause', () => {
+                if (!this.isPaused) {
+                    this.togglePlayPause();
+                }
+            });
+
+            navigator.mediaSession.setActionHandler('stop', () => {
+                this.stopReading();
+            });
+
+            navigator.mediaSession.setActionHandler('nexttrack', () => {
+                this.skipToNext();
+            });
+
+            navigator.mediaSession.setActionHandler('previoustrack', () => {
+                if (this.currentPostIndex > 0) {
+                    this.currentPostIndex -= 2; // Go back one (will be incremented in skipToNext)
+                    this.skipToNext();
+                }
+            });
+        }
+    }
+
     setupTouchOptimizations() {
         // Add touch-friendly event handlers
         const buttons = document.querySelectorAll('button');

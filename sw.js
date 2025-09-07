@@ -1,6 +1,6 @@
-// Service Worker for 4chan TTS - Background Audio Support
+// Service Worker for 4chan TTS - Enhanced Background Audio Support
 
-const CACHE_NAME = '4chan-tts-v1';
+const CACHE_NAME = '4chan-tts-v2';
 const urlsToCache = [
     '/',
     '/index.html',
@@ -8,6 +8,17 @@ const urlsToCache = [
     '/script.js',
     '/beep.mp3'
 ];
+
+// Audio state management
+let audioState = {
+    isPlaying: false,
+    currentPostIndex: 0,
+    currentThread: null,
+    lastActivity: Date.now()
+};
+
+// Keep service worker alive for background audio
+let keepAliveInterval = null;
 
 // Install event - cache resources
 self.addEventListener('install', (event) => {
@@ -63,6 +74,13 @@ self.addEventListener('sync', (event) => {
     }
 });
 
+// Periodic background task to maintain audio session
+self.addEventListener('periodicsync', (event) => {
+    if (event.tag === 'audio-keepalive') {
+        event.waitUntil(maintainAudioSession());
+    }
+});
+
 // Handle background audio synchronization
 async function handleBackgroundAudioSync() {
     try {
@@ -71,11 +89,41 @@ async function handleBackgroundAudioSync() {
         clients.forEach(client => {
             client.postMessage({
                 type: 'BACKGROUND_SYNC',
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                audioState: audioState
             });
         });
+        
+        // Update last activity
+        audioState.lastActivity = Date.now();
     } catch (error) {
         console.error('Background sync failed:', error);
+    }
+}
+
+// Maintain audio session for background playback
+async function maintainAudioSession() {
+    try {
+        if (audioState.isPlaying) {
+            // Send keepalive signal to prevent audio interruption
+            const clients = await self.clients.matchAll();
+            clients.forEach(client => {
+                client.postMessage({
+                    type: 'AUDIO_KEEPALIVE',
+                    timestamp: Date.now()
+                });
+            });
+            
+            // Schedule next keepalive
+            if (keepAliveInterval) {
+                clearInterval(keepAliveInterval);
+            }
+            keepAliveInterval = setInterval(() => {
+                self.registration.sync.register('background-audio-sync');
+            }, 30000); // Every 30 seconds
+        }
+    } catch (error) {
+        console.error('Audio session maintenance failed:', error);
     }
 }
 
@@ -92,17 +140,50 @@ self.addEventListener('message', (event) => {
             // Handle background permission requests
             handleBackgroundPermission();
             break;
+        case 'AUDIO_STARTED':
+            audioState.isPlaying = true;
+            audioState.currentPostIndex = data.postIndex || 0;
+            audioState.currentThread = data.threadNo || null;
+            maintainAudioSession();
+            break;
+        case 'AUDIO_STOPPED':
+            audioState.isPlaying = false;
+            if (keepAliveInterval) {
+                clearInterval(keepAliveInterval);
+                keepAliveInterval = null;
+            }
+            break;
+        case 'AUDIO_PAUSED':
+            audioState.isPlaying = false;
+            break;
+        case 'AUDIO_RESUMED':
+            audioState.isPlaying = true;
+            maintainAudioSession();
+            break;
         default:
             console.log('Service Worker: Unknown message type', type);
     }
 });
 
 // Store audio state for background recovery
-function handleAudioStateUpdate(audioState) {
-    // Store in IndexedDB or localStorage for persistence
+function handleAudioStateUpdate(newAudioState) {
+    // Update global audio state
+    Object.assign(audioState, newAudioState);
+    audioState.lastActivity = Date.now();
+    
+    // Register background sync to maintain session
     self.registration.sync.register('background-audio-sync').catch(err => {
         console.warn('Background sync registration failed:', err);
     });
+    
+    // Register periodic sync for audio keepalive (if supported)
+    if ('periodicSync' in self.registration) {
+        self.registration.periodicSync.register('audio-keepalive', {
+            minInterval: 30000 // 30 seconds
+        }).catch(err => {
+            console.warn('Periodic sync registration failed:', err);
+        });
+    }
 }
 
 // Handle background permission requests
