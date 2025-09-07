@@ -1571,49 +1571,79 @@ class FourChanTTS {
     }
     
     async setupNuclearAudioPersistence() {
-        try {
-            // Initialize Web Audio API context
-            this.webAudioContext = new (window.AudioContext || window.webkitAudioContext)({
-                latencyHint: 'playback',
-                sampleRate: 44100
-            });
-            
-            // Create persistent audio stream
-            await this.createPersistentAudioStream();
-            
-            // Setup audio worklet for background processing
-            await this.setupAudioWorklet();
-            
-            // Enable nuclear mode
-            this.nuclearAudioEnabled = true;
-            
-            console.log('🚀 Nuclear audio persistence enabled');
-        } catch (error) {
-            console.warn('Failed to setup nuclear audio persistence:', error);
-        }
-    }
+         try {
+             // Initialize Web Audio API context with mobile-friendly settings
+             this.webAudioContext = new (window.AudioContext || window.webkitAudioContext)({
+                 latencyHint: 'playback',
+                 sampleRate: 44100
+             });
+             
+             // Ensure context starts in correct state
+             if (this.webAudioContext.state === 'suspended') {
+                 await this.webAudioContext.resume();
+             }
+             
+             // Create persistent silent oscillator
+             await this.createPersistentAudioStream();
+             
+             // Setup audio worklet for background processing
+             await this.setupAudioWorklet();
+             
+             // Enable nuclear mode
+             this.nuclearAudioEnabled = true;
+             
+             console.log('🚀 Nuclear audio persistence enabled (no microphone)');
+         } catch (error) {
+             console.warn('Failed to setup nuclear audio persistence:', error);
+             // Fallback to basic audio context
+             this.setupBasicAudioContext();
+         }
+     }
+     
+     setupBasicAudioContext() {
+         try {
+             this.webAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+             console.log('📻 Basic audio context fallback enabled');
+         } catch (error) {
+             console.warn('Audio context not supported:', error);
+         }
+     }
+     
+     cleanupNuclearAudio() {
+         if (this.persistentOscillator) {
+             try {
+                 this.persistentOscillator.stop();
+                 this.persistentOscillator.disconnect();
+             } catch (error) {
+                 console.warn('Error stopping oscillator:', error);
+             }
+             this.persistentOscillator = null;
+         }
+         
+         if (this.persistentGain) {
+             this.persistentGain.disconnect();
+             this.persistentGain = null;
+         }
+     }
     
     async createPersistentAudioStream() {
         try {
-            // Create a persistent media stream to keep audio thread alive
-            this.persistentAudioStream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: false,
-                    sampleRate: 44100
-                }
-            });
+            // Create a silent oscillator to keep audio context alive
+            this.persistentOscillator = this.webAudioContext.createOscillator();
+            this.persistentGain = this.webAudioContext.createGain();
             
-            // Connect to Web Audio API
-            const source = this.webAudioContext.createMediaStreamSource(this.persistentAudioStream);
-            const gainNode = this.webAudioContext.createGain();
-            gainNode.gain.setValueAtTime(0, this.webAudioContext.currentTime); // Silent
+            // Set to inaudible frequency and zero volume
+            this.persistentOscillator.frequency.setValueAtTime(20000, this.webAudioContext.currentTime); // Above human hearing
+            this.persistentGain.gain.setValueAtTime(0, this.webAudioContext.currentTime); // Silent
             
-            source.connect(gainNode);
-            gainNode.connect(this.webAudioContext.destination);
+            // Connect the nodes
+            this.persistentOscillator.connect(this.persistentGain);
+            this.persistentGain.connect(this.webAudioContext.destination);
             
-            console.log('📡 Persistent audio stream created');
+            // Start the oscillator
+            this.persistentOscillator.start();
+            
+            console.log('📡 Silent oscillator created for audio persistence');
         } catch (error) {
             console.warn('Failed to create persistent audio stream:', error);
         }
@@ -1653,24 +1683,19 @@ class FourChanTTS {
     }
     
     maintainNuclearAudio() {
-        if (!this.webAudioContext) return;
-        
-        // Resume audio context if suspended
-        if (this.webAudioContext.state === 'suspended') {
-            this.webAudioContext.resume();
-        }
-        
-        // Ensure persistent stream is active
-        if (this.persistentAudioStream) {
-            const tracks = this.persistentAudioStream.getAudioTracks();
-            tracks.forEach(track => {
-                if (track.readyState !== 'live') {
-                    console.log('🔄 Restarting audio track');
-                    this.createPersistentAudioStream();
-                }
-            });
-        }
-    }
+         if (!this.webAudioContext) return;
+         
+         // Resume audio context if suspended
+         if (this.webAudioContext.state === 'suspended') {
+             this.webAudioContext.resume();
+         }
+         
+         // Ensure persistent oscillator is active
+         if (!this.persistentOscillator) {
+             console.log('🔄 Restarting audio oscillator');
+             this.createPersistentAudioStream();
+         }
+     }
     
     async detectBatterySaver() {
         try {
@@ -1745,8 +1770,8 @@ class FourChanTTS {
                  await this.webAudioContext.resume();
              }
              
-             // Ensure persistent stream is active
-             if (!this.persistentAudioStream || this.persistentAudioStream.getAudioTracks().length === 0) {
+             // Ensure persistent oscillator is active
+             if (!this.persistentOscillator) {
                  await this.createPersistentAudioStream();
              }
              
