@@ -51,6 +51,9 @@ class FourChanTTS {
         // ULTRA-AGGRESSIVE: Initialize nuclear audio immediately
         this.setupNuclearAudioPersistence();
         
+        // Initialize comprehensive Media Session API and background audio persistence
+        this.initializeMediaSessionManager();
+        
         // Initialize advanced audio persistence system
         this.initializeAdvancedAudioPersistence();
         
@@ -595,6 +598,18 @@ class FourChanTTS {
         this.isPlaying = true;
         this.playPauseBtn.textContent = '⏸️ Pause';
         this.requestWakeLock(); // Ensure wake lock is active
+        
+        // Update Media Session Manager
+        if (this.mediaSessionManager) {
+            this.mediaSessionManager.startPlayback();
+            this.mediaSessionManager.updateProgress(
+                this.currentPostIndex,
+                this.posts.length,
+                this.currentBoard,
+                this.currentThread
+            );
+        }
+        
         this.notifyServiceWorker('AUDIO_STATE_UPDATE', { isPlaying: true, postIndex: this.currentPostIndex });
         
         // Activate enhanced background audio management
@@ -612,6 +627,11 @@ class FourChanTTS {
         this.isPlaying = false;
         this.playPauseBtn.textContent = '▶️ Play';
         this.synth.pause();
+        
+        // Update Media Session Manager
+        if (this.mediaSessionManager) {
+            this.mediaSessionManager.pausePlayback();
+        }
     }
 
     stopReading() {
@@ -627,6 +647,11 @@ class FourChanTTS {
              this.currentAudio.currentTime = 0;
              this.currentAudio = null;
          }
+        
+        // Update Media Session Manager
+        if (this.mediaSessionManager) {
+            this.mediaSessionManager.stopPlayback();
+        }
         
         this.currentReading.textContent = '';
         this.releaseWakeLock(); // Release wake lock when stopped
@@ -653,6 +678,16 @@ class FourChanTTS {
             this.stopReading();
             this.showError('Reached end of posts.');
             return;
+        }
+        
+        // Update Media Session Manager
+        if (this.mediaSessionManager) {
+            this.mediaSessionManager.updateProgress(
+                this.currentPostIndex,
+                this.posts.length,
+                this.currentBoard,
+                this.currentThread
+            );
         }
         
         if (this.isPlaying) {
@@ -1604,6 +1639,57 @@ class FourChanTTS {
                 return e.returnValue;
             }
         });
+    }
+    
+    async initializeMediaSessionManager() {
+        try {
+            console.log('🎵 Loading comprehensive Media Session Manager...');
+            
+            // Load the media session manager script
+            const script = document.createElement('script');
+            script.src = './media-session-manager.js';
+            script.onload = () => {
+                console.log('✅ Media Session Manager script loaded');
+                
+                // Initialize the manager
+                this.mediaSessionManager = new window.MediaSessionManager();
+                
+                // Set up callbacks for TTS control
+                this.mediaSessionManager.setCallbacks({
+                    onPlay: () => {
+                        if (!this.isPlaying) {
+                            this.togglePlayPause();
+                        }
+                    },
+                    onPause: () => {
+                        if (this.isPlaying) {
+                            this.pauseReading();
+                        }
+                    },
+                    onStop: () => {
+                        this.stopReading();
+                    },
+                    onNext: () => {
+                        this.skipToNext();
+                    },
+                    onPrevious: () => {
+                        if (this.currentPostIndex > 0) {
+                            this.currentPostIndex -= 2; // Go back one (will be incremented in readCurrentPost)
+                            this.readCurrentPost();
+                        }
+                    }
+                });
+                
+                console.log('✅ Media Session Manager initialized with TTS callbacks');
+            };
+            script.onerror = () => {
+                console.error('❌ Failed to load Media Session Manager');
+            };
+            document.head.appendChild(script);
+            
+        } catch (error) {
+            console.error('❌ Failed to initialize Media Session Manager:', error);
+        }
     }
     
     async initializeAdvancedAudioPersistence() {

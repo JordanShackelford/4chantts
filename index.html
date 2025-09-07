@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>4chan TTS Reader</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#007AFF">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="4chan TTS">
 </head>
 <body>
     <div class="container">
@@ -98,6 +103,16 @@
             <div id="current-reading" class="current-reading"></div>
             <div id="error-message" class="error-message hidden"></div>
         </div>
+        
+        <!-- Invisible video element trick for background audio persistence -->
+        <video id="invisible-video" 
+               style="position: absolute; top: -9999px; left: -9999px; width: 1px; height: 1px; opacity: 0; pointer-events: none;"
+               muted 
+               loop 
+               playsinline 
+               preload="auto">
+            <source src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMWF2YzEAAAAIZnJlZQAAABBtZGF0AAAADGdlbmVyYXRlZAAAAAhtb292AAAAbG12aGQAAAAAAAAAAAAAAAAAAAPoAAAALgABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAABGGlvZHMAAAAAEICAgAcAT////v7/AAAF+XRyYWsAAABcdGtoZAAAAAMAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAALgAAAC4AAAAAACRlZHRzAAAAHGVsc3QAAAAAAAAAAQAAAC4AAAAAAAEAAAAAAAAAAHJtZGlhAAAAIG1kaGQAAAAAAAAAAAAAAAAAAKxEAAAIAFXEAAAAAAAtaGRscgAAAAAAAAAAdmlkZQAAAAAAAAAAAAAAAFZpZGVvSGFuZGxlcgAAAAEdaW5mbwAAABRpbmZvAAAAAQAAABgAAAABAAAAGHN0YmwAAAAYc3RzZAAAAAAAAAABAAAACGF2YzEAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAALgAuAEgAAABIAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY//8AAAAyYXZjQwFNQCj/4QAbZ01AKOyho+8BAAAAAwAEAAADAFA8SJZYAQAGaOvjyyLAAAAAGHN0dHMAAAAAAAAAAQAAAAEAAAQAAAAAHHN0c2MAAAAAAAAAAQAAAAEAAAABAAAAAQAAABRzdHN6AAAAAAAAAAAAAAABAAAAFAAAABRzdGNvAAAAAAAAAAEAAAAsAAAAYnVkdGEAAABabWV0YQAAAAAAAAAhaGRscgAAAAAAAAAAbWRpcmFwcGwAAAAAAAAAAAAAAAAtaWxzdAAAACWpdG9vAAAAHWRhdGEAAAABAAAAAExhdmY1Ni40MC4xMDE=" type="video/mp4">
+        </video>
     </div>
 
     <script src="https://js.puter.com/v2/"></script>
