@@ -51,7 +51,13 @@ class FourChanTTS {
         // ULTRA-AGGRESSIVE: Initialize nuclear audio immediately
         this.setupNuclearAudioPersistence().then(() => {
             console.log('🚀 ULTRA: Nuclear audio fully initialized');
-            this.startUltraAggressiveMode();
+            if (typeof this.startUltraAggressiveMode === 'function') {
+                this.startUltraAggressiveMode();
+            } else {
+                console.error('startUltraAggressiveMode is not a function');
+            }
+        }).catch(error => {
+            console.error('Failed to setup nuclear audio:', error);
         });
         this.detectBatterySaver();
         this.setupMobileOptimizations();
