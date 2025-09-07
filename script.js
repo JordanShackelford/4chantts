@@ -547,6 +547,15 @@ class FourChanTTS {
         this.playPauseBtn.textContent = '⏸️ Pause';
         this.requestWakeLock(); // Ensure wake lock is active
         this.notifyServiceWorker('AUDIO_STATE_UPDATE', { isPlaying: true, postIndex: this.currentPostIndex });
+        
+        // Activate enhanced background audio management
+        this.notifyServiceWorker('BACKGROUND_AUDIO_ACTIVE', {
+            isPlaying: true,
+            postIndex: this.currentPostIndex,
+            threadNo: this.currentThread,
+            timestamp: Date.now()
+        });
+        
         await this.readCurrentPost();
     }
 
@@ -1327,16 +1336,159 @@ class FourChanTTS {
         // Request wake lock to prevent screen from sleeping during playback
         this.requestWakeLock();
         
+        // Enhanced background audio persistence
+        this.setupBackgroundAudioPersistence();
+        
         // Handle visibility change to maintain playback
         document.addEventListener('visibilitychange', () => {
             if (document.hidden && this.isPlaying) {
                 // Page is hidden but we're playing - try to maintain audio
                 this.handleBackgroundPlayback();
+                this.preventPageSuspension();
             } else if (!document.hidden && this.isPlaying) {
                 // Page is visible again - resume normal operation
                 this.requestWakeLock();
+                this.resumeFromBackground();
             }
         });
+        
+        // Prevent page from being suspended on mobile
+        this.setupPageSuspensionPrevention();
+    }
+    
+    setupBackgroundAudioPersistence() {
+        // Keep audio context alive
+        if (window.AudioContext || window.webkitAudioContext) {
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Create a silent audio buffer to keep context alive
+            this.silentBuffer = this.audioContext.createBuffer(1, 1, 22050);
+            this.silentSource = null;
+        }
+        
+        // Enhanced media session for better mobile support
+        this.setupEnhancedMediaSession();
+        
+        // Aggressive audio session management
+        setInterval(() => {
+            if (this.isPlaying && document.hidden) {
+                this.maintainBackgroundAudio();
+            }
+        }, 5000); // Check every 5 seconds
+    }
+    
+    setupPageSuspensionPrevention() {
+        // Multiple techniques to prevent page suspension
+        
+        // 1. Periodic network activity
+        this.backgroundPingInterval = setInterval(() => {
+            if (this.isPlaying && document.hidden) {
+                // Minimal network request to keep connection alive
+                fetch('/favicon.ico', { cache: 'no-cache' }).catch(() => {});
+            }
+        }, 30000);
+        
+        // 2. Periodic DOM manipulation
+        this.backgroundDOMInterval = setInterval(() => {
+            if (this.isPlaying && document.hidden) {
+                // Minimal DOM update to prevent suspension
+                document.title = document.title;
+            }
+        }, 15000);
+        
+        // 3. Audio context state management
+        document.addEventListener('touchstart', () => {
+            if (this.audioContext && this.audioContext.state === 'suspended') {
+                this.audioContext.resume();
+            }
+        }, { passive: true });
+    }
+    
+    preventPageSuspension() {
+        // Play silent audio to keep audio session active
+        if (this.audioContext && this.silentBuffer) {
+            try {
+                if (this.silentSource) {
+                    this.silentSource.stop();
+                }
+                this.silentSource = this.audioContext.createBufferSource();
+                this.silentSource.buffer = this.silentBuffer;
+                this.silentSource.connect(this.audioContext.destination);
+                this.silentSource.loop = true;
+                this.silentSource.start();
+            } catch (error) {
+                console.log('Silent audio failed:', error);
+            }
+        }
+        
+        // Force speech synthesis to stay active
+        if (this.synth.paused) {
+            this.synth.resume();
+        }
+        
+        // Notify service worker of background state
+        this.notifyServiceWorker('BACKGROUND_AUDIO_ACTIVE', {
+            isPlaying: this.isPlaying,
+            currentPostIndex: this.currentPostIndex
+        });
+    }
+    
+    maintainBackgroundAudio() {
+        // Aggressive audio maintenance for background playback
+        if (this.currentUtterance && this.synth.speaking) {
+            // Force resume if paused
+            if (this.synth.paused) {
+                this.synth.resume();
+            }
+        } else if (this.isPlaying && !this.synth.speaking) {
+            // If we should be playing but aren't, restart current post
+            console.log('Restarting audio from background');
+            this.readCurrentPost();
+        }
+        
+        // Keep audio context alive
+        if (this.audioContext && this.audioContext.state === 'suspended') {
+            this.audioContext.resume();
+        }
+    }
+    
+    resumeFromBackground() {
+        // Clean up background audio maintenance
+        if (this.silentSource) {
+            try {
+                this.silentSource.stop();
+                this.silentSource = null;
+            } catch (error) {
+                console.log('Silent audio cleanup failed:', error);
+            }
+        }
+        
+        // Ensure audio is still playing
+        if (this.isPlaying && this.synth.paused) {
+            this.synth.resume();
+        }
+    }
+    
+    setupEnhancedMediaSession() {
+        if ('mediaSession' in navigator) {
+            // Set playback state
+            navigator.mediaSession.playbackState = 'playing';
+            
+            // Enhanced action handlers with better mobile support
+            navigator.mediaSession.setActionHandler('play', () => {
+                if (this.isPaused) {
+                    this.togglePlayPause();
+                }
+                navigator.mediaSession.playbackState = 'playing';
+            });
+
+            navigator.mediaSession.setActionHandler('pause', () => {
+                if (!this.isPaused) {
+                    this.togglePlayPause();
+                }
+                navigator.mediaSession.playbackState = 'paused';
+            });
+        }
         
         // Handle page unload to clean up wake lock
         window.addEventListener('beforeunload', () => {
@@ -1476,6 +1628,12 @@ class FourChanTTS {
                 // Handle background sync - ensure audio continues
                 if (this.isPlaying && this.synth.paused) {
                     this.synth.resume();
+                }
+                break;
+            case 'BACKGROUND_KEEPALIVE':
+                // Enhanced background keepalive handling
+                if (this.isPlaying && document.hidden) {
+                    this.maintainBackgroundAudio();
                 }
                 break;
             default:

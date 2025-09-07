@@ -19,6 +19,8 @@ let audioState = {
 
 // Keep service worker alive for background audio
 let keepAliveInterval = null;
+let backgroundAudioInterval = null;
+let audioKeepAliveTimer = null;
 
 // Install event - cache resources
 self.addEventListener('install', (event) => {
@@ -67,10 +69,12 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// Background sync for maintaining audio state
+// Background sync for maintaining audio session
 self.addEventListener('sync', (event) => {
     if (event.tag === 'background-audio-sync') {
         event.waitUntil(handleBackgroundAudioSync());
+    } else if (event.tag === 'background-audio-maintenance') {
+        event.waitUntil(maintainAudioSession());
     }
 });
 
@@ -136,6 +140,10 @@ self.addEventListener('message', (event) => {
             // Store audio state for background recovery
             handleAudioStateUpdate(data);
             break;
+        case 'BACKGROUND_AUDIO_ACTIVE':
+            // Enhanced background audio management
+            handleBackgroundAudioActive(data);
+            break;
         case 'REQUEST_BACKGROUND_PERMISSION':
             // Handle background permission requests
             handleBackgroundPermission();
@@ -192,6 +200,49 @@ function handleBackgroundPermission() {
     if ('Notification' in self && Notification.permission === 'default') {
         Notification.requestPermission();
     }
+}
+
+// Enhanced background audio management
+function handleBackgroundAudioActive(data) {
+    audioState = { ...audioState, ...data };
+    
+    // Start aggressive background audio maintenance
+    if (backgroundAudioInterval) {
+        clearInterval(backgroundAudioInterval);
+    }
+    
+    backgroundAudioInterval = setInterval(async () => {
+        try {
+            // Send keepalive signals to all clients
+            const clients = await self.clients.matchAll();
+            clients.forEach(client => {
+                client.postMessage({
+                    type: 'BACKGROUND_KEEPALIVE',
+                    timestamp: Date.now(),
+                    audioState: audioState
+                });
+            });
+            
+            // Register background sync to maintain audio
+            if (self.registration && self.registration.sync) {
+                self.registration.sync.register('background-audio-maintenance');
+            }
+        } catch (error) {
+            console.error('Background audio maintenance failed:', error);
+        }
+    }, 3000); // Every 3 seconds for aggressive maintenance
+    
+    // Set up audio keepalive timer
+    if (audioKeepAliveTimer) {
+        clearTimeout(audioKeepAliveTimer);
+    }
+    
+    audioKeepAliveTimer = setTimeout(() => {
+        if (backgroundAudioInterval) {
+            clearInterval(backgroundAudioInterval);
+            backgroundAudioInterval = null;
+        }
+    }, 300000); // Stop after 5 minutes of inactivity
 }
 
 // Notification click handler for returning to app
