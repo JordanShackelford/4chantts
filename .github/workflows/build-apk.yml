@@ -134,22 +134,21 @@ jobs:
         
     - name: Create Release
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
+      continue-on-error: true
       with:
         tag_name: v${{ github.run_number }}
-        name: Release v${{ github.run_number }}
+        name: "4chan TTS APK v${{ github.run_number }}"
         body: |
-          Automated release of 4chan TTS Android APK
+          Android APK build for 4chan TTS
           
-          ## Changes
-          - Built from commit ${{ github.sha }}
-          - Includes latest bug fixes and improvements
+          **Download the APK:**
+          - [4chantts.apk](https://github.com/${{ github.repository }}/releases/download/v${{ github.run_number }}/4chantts.apk)
           
-          ## Installation
-          1. Download the APK file below
-          2. Enable "Install from unknown sources" in Android settings
-          3. Install the APK
-          
+          **Installation:**
+          1. Enable "Unknown sources" in Android settings
+          2. Download and install the APK
+          3. Grant necessary permissions when prompted
         files: |
           4chantts.apk
         draft: false
