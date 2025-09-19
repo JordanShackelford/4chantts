@@ -337,9 +337,10 @@ Note: Shortcuts work when not typing in input fields.`;
     async loadBoardsFromAPI() {
         const proxies = [
             '', // Direct access first
+            'https://api.codetabs.com/v1/proxy?quest=',
+            'https://api.allorigins.win/raw?url=',
             'https://corsproxy.io/?',
-            'https://cors-anywhere.herokuapp.com/',
-            'https://api.allorigins.win/raw?url='
+            'https://cors-anywhere.herokuapp.com/'
         ];
         
         for (const proxy of proxies) {
@@ -493,7 +494,13 @@ Note: Shortcuts work when not typing in input fields.`;
         
         try {
             console.log(`Loading threads for /${this.selectedBoard}/...`);
-            const proxies = ['', 'https://corsproxy.io/?', 'https://cors-anywhere.herokuapp.com/', 'https://api.allorigins.win/raw?url='];
+            const proxies = [
+                '', // Direct access first
+                'https://api.codetabs.com/v1/proxy?quest=',
+                'https://api.allorigins.win/raw?url=',
+                'https://corsproxy.io/?',
+                'https://cors-anywhere.herokuapp.com/'
+            ];
             let response;
             
             for (const proxy of proxies) {
