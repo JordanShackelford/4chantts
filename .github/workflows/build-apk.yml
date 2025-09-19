@@ -34,19 +34,20 @@ jobs:
       
     - name: Create Cordova project
       run: |
-        cordova create 4chantts-mobile com.chantts.app "4chan TTS"
-        cd 4chantts-mobile
+        rm -rf 4chantts-mobile-build
+        cordova create 4chantts-mobile-build com.chantts.app "4chan TTS"
+        cd 4chantts-mobile-build
         cordova platform add android
         
     - name: Copy web app files
       run: |
-        cd 4chantts-mobile
+        cd 4chantts-mobile-build
         rm -rf www/*
         cp ../index.html ../script.js ../styles.css ../openrouter-config.js ../tone-integration-example.js ../manifest.json ../sw.js www/
         
     - name: Configure Cordova
       run: |
-        cd 4chantts-mobile
+        cd 4chantts-mobile-build
         cat > config.xml << 'EOF'
         <?xml version='1.0' encoding='utf-8'?>
         <widget id="com.chantts.app" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
@@ -99,12 +100,12 @@ jobs:
         
     - name: Build APK
       run: |
-        cd 4chantts-mobile
+        cd 4chantts-mobile-build
         cordova build android --release
         
     - name: Sign APK (optional)
       run: |
-        cd 4chantts-mobile
+        cd 4chantts-mobile-build
         # For now, we'll use the unsigned APK
         cp platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk ../4chantts.apk
         
