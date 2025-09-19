@@ -67,16 +67,18 @@ jobs:
             <platform name="android">
                 <allow-intent href="market:*" />
                 
-                <!-- Permissions -->
-                <uses-permission android:name="android.permission.INTERNET" />
-                <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-                <uses-permission android:name="android.permission.RECORD_AUDIO" />
-                <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-                
                 <!-- Content Security Policy -->
                 <edit-config file="app/src/main/AndroidManifest.xml" mode="merge" target="/manifest/application">
                     <application android:usesCleartextTraffic="true" />
                 </edit-config>
+                
+                <!-- Permissions -->
+                <config-file target="AndroidManifest.xml" parent="/manifest">
+                    <uses-permission android:name="android.permission.INTERNET" />
+                    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+                    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+                    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+                </config-file>
             </platform>
             
             <!-- Content Security Policy -->
