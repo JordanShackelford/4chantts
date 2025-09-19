@@ -104,9 +104,9 @@ jobs:
       run: |
         cd 4chantts-mobile-build
         echo "Starting Cordova build..."
-        cordova build android --release --verbose
+        cordova build android --debug --verbose
         echo "Build completed. Checking for APK..."
-        ls -la platforms/android/app/build/outputs/apk/release/ || echo "Release directory not found"
+        ls -la platforms/android/app/build/outputs/apk/ || echo "APK directory not found"
         find platforms/android/app/build/outputs/ -name "*.apk" -type f || echo "No APK files found"
         
     - name: Sign APK (optional)
