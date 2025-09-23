@@ -1,6 +1,7 @@
 class FourChanTTS {
     constructor() {
         this.isReading = false;
+        this.isTransitioning = false;
         this.currentPostIndex = 0;
         this.posts = [];
         this.threads = [];
@@ -11,8 +12,9 @@ class FourChanTTS {
         this.voices = [];
         this.voiceAssignments = new Map();
         this.userVoices = new Map();
-        this.autoPlay = false;
-        this.autoPlayDelay = 2000;
+        this.voicesLoaded = false;
+        this.autoPlay = true;
+        this.autoPlayDelay = 500;
         this.imageDescriptionEnabled = false;
         this.puterTTSEnabled = false;
         this.puterTTSFailures = 0;
@@ -33,13 +35,28 @@ class FourChanTTS {
         this.setupCloudTTSOption();
         this.setupRhymeBeatControls();
         
-        // Load boards and threads
+        // Load boards and start auto-play
+        console.log('About to load boards...');
         this.loadAllBoards().then(() => {
-            this.loadThreads();
+            console.log('Boards loaded successfully');
+            this.startAutoPlayWorkflow();
         }).catch(error => {
             console.error('Failed to initialize:', error);
             this.showError('Failed to load boards. Check your connection.', true, () => this.loadAllBoards());
         });
+        
+        // Force fallback boards as a test
+        setTimeout(() => {
+            console.log('Timeout check: boards =', this.boards);
+            console.log('Timeout check: boardSelector =', this.boardSelector);
+            if (!this.boards || this.boards.length === 0) {
+                console.log('No boards loaded after 3 seconds, forcing fallback...');
+                this.useFallbackBoards();
+                this.startAutoPlayWorkflow();
+            } else {
+                console.log('Boards already loaded:', this.boards.length);
+            }
+        }, 3000);
         
         // Initialize tone analysis system
         if (this.toneAnalysisEnabled) {
@@ -49,26 +66,27 @@ class FourChanTTS {
 
     initializeElements() {
         this.boardSelector = document.getElementById('boardSelector');
-        this.threadList = document.getElementById('threadList');
-        this.postList = document.getElementById('postList');
-        this.playPauseBtn = document.getElementById('playPauseBtn');
-        this.stopBtn = document.getElementById('stopBtn');
-        this.nextBtn = document.getElementById('nextBtn');
-        this.voiceSelect = document.getElementById('voiceSelect');
-        this.rateSlider = document.getElementById('rateSlider');
+        this.loadThreadsBtn = document.getElementById('load-threads');
+        this.threadList = document.getElementById('threads-list');
+        this.postList = document.getElementById('posts-list');
+        this.playPauseBtn = document.getElementById('play-pause');
+        this.stopBtn = document.getElementById('stop');
+        this.nextBtn = document.getElementById('skip');
+        this.voiceSelect = document.getElementById('voice-select');
+        this.rateSlider = document.getElementById('speed-range');
         this.pitchSlider = document.getElementById('pitchSlider');
         this.volumeSlider = document.getElementById('volumeSlider');
-        this.autoPlayCheckbox = document.getElementById('autoPlayCheckbox');
-        this.autoPlayDelaySlider = document.getElementById('autoPlayDelaySlider');
-        this.imageDescriptionCheckbox = document.getElementById('imageDescriptionCheckbox');
-        this.loadingIndicator = document.getElementById('loadingIndicator');
-        this.errorMessage = document.getElementById('errorMessage');
+        this.autoPlayCheckbox = null; // Element doesn't exist in HTML
+        this.autoPlayDelaySlider = null; // Element doesn't exist in HTML
+        this.imageDescriptionCheckbox = document.getElementById('enable-image-descriptions');
+        this.loadingIndicator = document.getElementById('loading');
+        this.errorMessage = document.getElementById('error-message');
         this.debugInfo = document.getElementById('debugInfo');
-        this.puterTTSCheckbox = document.getElementById('puterTTSCheckbox');
-        this.toneAnalysisCheckbox = document.getElementById('toneAnalysisCheckbox');
-        this.rhymeCheckbox = document.getElementById('rhymeCheckbox');
-        this.beatCheckbox = document.getElementById('beatCheckbox');
-        this.beatTempoSlider = document.getElementById('beatTempoSlider');
+        this.puterTTSCheckbox = document.getElementById('use-puter-tts');
+        this.toneAnalysisCheckbox = document.getElementById('enable-tone-analysis');
+        this.rhymeCheckbox = document.getElementById('enable-rhyme-mode');
+        this.beatCheckbox = document.getElementById('enable-beat-sync');
+        this.beatTempoSlider = document.getElementById('bpm-range');
         this.progressContainer = document.getElementById('progress-container');
         this.progressText = document.getElementById('progress-text');
         this.progressPercentage = document.getElementById('progress-percentage');
@@ -78,9 +96,14 @@ class FourChanTTS {
     setupEventListeners() {
         if (this.boardSelector) {
             this.boardSelector.addEventListener('change', () => {
+                console.log('Board selector changed to:', this.boardSelector.value);
                 this.selectedBoard = this.boardSelector.value;
+                console.log('Selected board set to:', this.selectedBoard);
                 if (this.selectedBoard) {
+                    console.log('Auto-loading threads for selected board...');
                     this.loadThreads();
+                } else {
+                    console.log('No board selected, not loading threads');
                 }
             });
         }
@@ -97,22 +120,36 @@ class FourChanTTS {
             this.nextBtn.addEventListener('click', () => this.skipToNext());
         }
 
-        if (this.autoPlayCheckbox) {
-            this.autoPlayCheckbox.addEventListener('change', (e) => {
-                this.autoPlay = e.target.checked;
-            });
-        }
+        // Auto-play controls don't exist in current HTML - commenting out to prevent errors
+        // if (this.autoPlayCheckbox) {
+        //     this.autoPlayCheckbox.addEventListener('change', (e) => {
+        //         this.autoPlay = e.target.checked;
+        //     });
+        // }
 
-        if (this.autoPlayDelaySlider) {
-            this.autoPlayDelaySlider.addEventListener('input', (e) => {
-                this.autoPlayDelay = parseInt(e.target.value);
-                document.getElementById('autoPlayDelayValue').textContent = this.autoPlayDelay + 'ms';
-            });
-        }
+        // if (this.autoPlayDelaySlider) {
+        //     this.autoPlayDelaySlider.addEventListener('input', (e) => {
+        //         this.autoPlayDelay = parseInt(e.target.value);
+        //         const autoPlayDelayValue = document.getElementById('autoPlayDelayValue');
+        //         if (autoPlayDelayValue) {
+        //             autoPlayDelayValue.textContent = this.autoPlayDelay + 'ms';
+        //         }
+        //     });
+        // }
 
         if (this.imageDescriptionCheckbox) {
             this.imageDescriptionCheckbox.addEventListener('change', (e) => {
                 this.imageDescriptionEnabled = e.target.checked;
+            });
+        }
+
+        // Add event listener for speed range slider
+        if (this.rateSlider) {
+            this.rateSlider.addEventListener('input', (e) => {
+                const speedValue = document.getElementById('speed-value');
+                if (speedValue) {
+                    speedValue.textContent = parseFloat(e.target.value).toFixed(1) + 'x';
+                }
             });
         }
 
@@ -156,11 +193,37 @@ class FourChanTTS {
         if (this.beatTempoSlider) {
             this.beatTempoSlider.addEventListener('input', (e) => {
                 this.beatTempo = parseInt(e.target.value);
-                document.getElementById('beatTempoValue').textContent = this.beatTempo + ' BPM';
+                const beatTempoValue = document.getElementById('bpm-value');
+        if (beatTempoValue) {
+            beatTempoValue.textContent = this.beatTempo + ' BPM';
+        }
                 if (this.beatEnabled) {
                     this.stopBeatMethod();
                     this.startBeat();
                 }
+            });
+        }
+
+        // Add event listener for Load Threads button
+        if (this.loadThreadsBtn) {
+            this.loadThreadsBtn.addEventListener('click', () => {
+                console.log('Load Threads button clicked!');
+                console.log('Selected board:', this.selectedBoard);
+                if (this.selectedBoard) {
+                    console.log('Starting to load threads...');
+                    this.loadThreads();
+                } else {
+                    console.log('No board selected, showing error');
+                    this.showError('Please select a board first.');
+                }
+            });
+        }
+        
+        // Add test TTS button event listener
+        const testTTSBtn = document.getElementById('test-tts-btn');
+        if (testTTSBtn) {
+            testTTSBtn.addEventListener('click', () => {
+                this.testTTS();
             });
         }
     }
@@ -282,29 +345,92 @@ Note: Shortcuts work when not typing in input fields.`;
     }
 
     loadVoices() {
+        console.log('🎤 Starting voice loading system...');
+        console.log('🔍 speechSynthesis available:', !!this.speechSynthesis);
+        console.log('🔍 voiceSelect element:', !!this.voiceSelect);
+        
         const updateVoices = () => {
             this.voices = this.speechSynthesis.getVoices();
+            console.log('🔄 Voice update called, found:', this.voices.length, 'voices');
             
-            if (this.voiceSelect && this.voices.length > 0) {
+            if (this.voices.length > 0) {
+                console.log('📋 Available voices:');
+                this.voices.forEach((voice, index) => {
+                    console.log(`  ${index}: ${voice.name} (${voice.lang}) ${voice.default ? '[DEFAULT]' : ''}`);
+                });
+            }
+            
+            if (this.voiceSelect) {
                 this.voiceSelect.innerHTML = '';
                 
-                this.voices.forEach((voice, index) => {
-                    const option = document.createElement('option');
-                    option.value = index;
-                    option.textContent = `${voice.name} (${voice.lang})`;
-                    if (voice.default) {
-                        option.selected = true;
-                    }
-                    this.voiceSelect.appendChild(option);
-                });
+                if (this.voices.length > 0) {
+                    this.voices.forEach((voice, index) => {
+                        const option = document.createElement('option');
+                        option.value = index;
+                        option.textContent = `${voice.name} (${voice.lang})`;
+                        if (voice.default) {
+                            option.selected = true;
+                        }
+                        this.voiceSelect.appendChild(option);
+                    });
+                    
+                    console.log(`✅ Successfully populated voice dropdown with ${this.voices.length} voices`);
+                    this.voicesLoaded = true;
+                    this.autoPlay = true;
+                } else {
+                    console.log('⚠️ No voices found - adding fallback option');
+                    const fallbackOption = document.createElement('option');
+                    fallbackOption.value = '';
+                    fallbackOption.textContent = 'No voices available - loading...';
+                    this.voiceSelect.appendChild(fallbackOption);
+                }
+            } else {
+                console.error('❌ voiceSelect element not found!');
             }
         };
         
+        // Force immediate voice loading
         updateVoices();
         
+        // Set up voice change listener
         if (this.speechSynthesis.onvoiceschanged !== undefined) {
+            console.log('🔗 Setting up onvoiceschanged listener');
             this.speechSynthesis.onvoiceschanged = updateVoices;
+        } else {
+            console.warn('⚠️ onvoiceschanged not supported');
         }
+        
+        // Aggressive voice loading with multiple attempts
+        const forceVoiceLoad = (attempt) => {
+            console.log(`🚀 Force loading voices (attempt ${attempt})...`);
+            this.speechSynthesis.cancel();
+            
+            // Create a dummy utterance to trigger voice loading
+            const dummyUtterance = new SpeechSynthesisUtterance('test');
+            dummyUtterance.volume = 0;
+            this.speechSynthesis.speak(dummyUtterance);
+            this.speechSynthesis.cancel();
+            
+            updateVoices();
+        };
+        
+        // Multiple fallback attempts with different timings
+        setTimeout(() => forceVoiceLoad(1), 50);
+        setTimeout(() => forceVoiceLoad(2), 200);
+        setTimeout(() => forceVoiceLoad(3), 500);
+        setTimeout(() => forceVoiceLoad(4), 1000);
+        setTimeout(() => forceVoiceLoad(5), 2000);
+        
+        // Final check after 3 seconds
+        setTimeout(() => {
+            console.log('🏁 Final voice check after 3 seconds:');
+            console.log('   Voices loaded:', this.voices.length);
+            console.log('   voicesLoaded flag:', this.voicesLoaded);
+            if (this.voices.length === 0) {
+                console.error('❌ CRITICAL: No voices loaded after all attempts!');
+                this.showError('Voice loading failed. Please refresh the page or try a different browser.');
+            }
+        }, 3000);
     }
 
     getVoiceForThread(threadNo) {
@@ -324,6 +450,7 @@ Note: Shortcuts work when not typing in input fields.`;
     }
 
     async loadAllBoards() {
+        console.log('Starting to load boards...');
         this.showLoading(true);
         
         try {
@@ -335,18 +462,36 @@ Note: Shortcuts work when not typing in input fields.`;
     }
     
     async loadBoardsFromAPI() {
+        console.log('Attempting to load boards from API...');
+        
         const proxies = [
-            '', // Direct access first
+            'http://localhost:8001/api/', // Local CORS proxy - most reliable
+            '', // Direct access second
             'https://api.allorigins.win/raw?url=',
             'https://cors.bridged.cc/',
             'https://api.codetabs.com/v1/proxy?quest=',
             'https://corsproxy.io/?'
         ];
         
+        let lastError;
+        
         for (const proxy of proxies) {
-            try {
-                const url = `${proxy}https://a.4cdn.org/boards.json`;
-                const response = await fetch(url);
+                try {
+                    let url;
+                    if (proxy === 'http://localhost:8001/api/') {
+                        url = `${proxy}boards.json`;
+                    } else {
+                        url = `${proxy}https://a.4cdn.org/boards.json`;
+                    }
+                    console.log(`Trying to load boards with proxy: ${proxy || 'direct'}`);
+                    const response = await fetch(url, { 
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                        mode: 'cors'
+                    });
+                
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
@@ -360,27 +505,36 @@ Note: Shortcuts work when not typing in input fields.`;
                         description: board.meta_description || board.title
                     }));
                     
-                    console.log(`Loaded ${this.boards.length} boards from API`);
+                    console.log(`Loaded ${this.boards.length} boards from API with proxy: ${proxy || 'direct'}`);
                     this.populateBoardSelector();
                     this.selectRandomBoard();
+                    this.showLoading(false);
                     return; // Success, exit the loop
                 } else {
                     throw new Error('Invalid board data structure');
                 }
             } catch (error) {
-                console.error(`Failed with proxy ${proxy || 'direct'}:`, error);
+                lastError = error;
+                console.log(`Failed to load boards with proxy ${proxy || 'direct'}:`, error.message);
                 if (proxy === proxies[proxies.length - 1]) {
-                    // Last proxy failed, use fallback
+                    // All proxies failed, use fallback
+                    console.log('All proxies failed, using fallback boards');
                     this.useFallbackBoards();
                     return;
                 }
-                // Continue to next proxy
             }
         }
     }
     
     populateBoardSelector() {
-        if (!this.boardSelector || !this.boards) return;
+        console.log('populateBoardSelector called');
+        console.log('boardSelector element:', this.boardSelector);
+        console.log('boards array:', this.boards);
+        
+        if (!this.boardSelector || !this.boards) {
+            console.log('Missing boardSelector or boards, returning early');
+            return;
+        }
         
         this.boardSelector.innerHTML = '<option value="">Select a board...</option>';
         
@@ -390,6 +544,8 @@ Note: Shortcuts work when not typing in input fields.`;
             option.textContent = `/${board.board}/ - ${board.title}`;
             this.boardSelector.appendChild(option);
         });
+        
+        console.log('Board selector populated with', this.boards.length, 'boards');
     }
     
     selectRandomBoard() {
@@ -484,6 +640,10 @@ Note: Shortcuts work when not typing in input fields.`;
     }
 
     async loadThreads() {
+        console.log('=== loadThreads() called ===');
+        console.log('selectedBoard:', this.selectedBoard);
+        console.log('threadList element:', this.threadList);
+        
         if (!this.selectedBoard) {
             console.warn('No board selected');
             return;
@@ -495,26 +655,42 @@ Note: Shortcuts work when not typing in input fields.`;
         try {
             console.log(`Loading threads for /${this.selectedBoard}/...`);
             const proxies = [
-                '', // Direct access first
+                'http://localhost:8001/api/', // Local CORS proxy - most reliable
+                '', // Direct access second
                 'https://api.allorigins.win/raw?url=',
                 'https://cors.bridged.cc/',
                 'https://api.codetabs.com/v1/proxy?quest=',
                 'https://corsproxy.io/?'
             ];
             let response;
+            let lastError;
             
             for (const proxy of proxies) {
                 try {
-                    const url = `${proxy}https://a.4cdn.org/${this.selectedBoard}/catalog.json`;
+                    let url;
+                    if (proxy === 'http://localhost:8001/api/') {
+                        url = `${proxy}${this.selectedBoard}/catalog.json`;
+                    } else {
+                        url = `${proxy}https://a.4cdn.org/${this.selectedBoard}/catalog.json`;
+                    }
+                    console.log(`Trying proxy: ${proxy || 'direct'}`);
                     response = await fetch(url);
-                    if (response.ok) break;
+                    if (response.ok) {
+                        console.log(`Success with proxy: ${proxy || 'direct'}`);
+                        console.log('Response status:', response.status);
+                        break;
+                    } else {
+                        console.log(`Failed with proxy ${proxy || 'direct'}: HTTP ${response.status}`);
+                    }
                 } catch (e) {
+                    lastError = e;
+                    console.log(`Failed with proxy ${proxy || 'direct'}:`, e.message);
                     if (proxy === proxies[proxies.length - 1]) throw e;
                 }
             }
             
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+            if (!response || !response.ok) {
+                throw new Error(`HTTP error! status: ${response?.status || 'unknown'}`);
             }
             
             const data = await response.json();
@@ -540,13 +716,16 @@ Note: Shortcuts work when not typing in input fields.`;
             }
             
             console.log(`Loaded ${this.threads.length} threads`);
+            if (this.threads.length > 0) {
+                console.log('First few threads:', this.threads.slice(0, 3));
+            }
             this.displayThreads(this.threads);
             
         } catch (error) {
             console.error('Failed to load threads:', error);
-            const errorMessage = error.message.includes('HTTP error') 
-                ? `Network error loading threads for /${this.selectedBoard}/. Check your connection.`
-                : `Failed to load threads for /${this.selectedBoard}/.`;
+            const errorMessage = `Failed to load threads for /${this.selectedBoard}/. ` +
+                               `This may be due to CORS restrictions or network issues. ` +
+                               `Try refreshing the page or using a different browser.`;
             this.showError(errorMessage, true, () => this.loadThreads());
         } finally {
             this.showLoading(false);
@@ -554,7 +733,14 @@ Note: Shortcuts work when not typing in input fields.`;
     }
 
     displayThreads(threads) {
-        if (!this.threadList) return;
+        console.log('=== displayThreads() called ===');
+        console.log('threads array length:', threads ? threads.length : 'null/undefined');
+        console.log('threadList element:', this.threadList);
+        
+        if (!this.threadList) {
+            console.error('threadList element not found!');
+            return;
+        }
         
         this.threadList.innerHTML = '';
         
@@ -588,12 +774,24 @@ Note: Shortcuts work when not typing in input fields.`;
         
         try {
             console.log(`Loading posts for thread ${threadNo}...`);
-            const proxies = ['', 'https://corsproxy.io/?', 'https://cors-anywhere.herokuapp.com/', 'https://api.allorigins.win/raw?url='];
+            const proxies = [
+                'http://localhost:8001/api/', // Local CORS proxy - most reliable
+                '', // Direct access second
+                'https://api.allorigins.win/raw?url=',
+                'https://cors.bridged.cc/',
+                'https://api.codetabs.com/v1/proxy?quest=',
+                'https://corsproxy.io/?'
+            ];
             let response;
             
             for (const proxy of proxies) {
                 try {
-                    const url = `${proxy}https://a.4cdn.org/${this.selectedBoard}/thread/${threadNo}.json`;
+                    let url;
+                    if (proxy === 'http://localhost:8001/api/') {
+                        url = `${proxy}${this.selectedBoard}/thread/${threadNo}.json`;
+                    } else {
+                        url = `${proxy}https://a.4cdn.org/${this.selectedBoard}/thread/${threadNo}.json`;
+                    }
                     response = await fetch(url);
                     if (response.ok) break;
                 } catch (e) {
@@ -621,6 +819,14 @@ Note: Shortcuts work when not typing in input fields.`;
                 
                 console.log(`Loaded ${this.posts.length} posts`);
                 this.displayPosts();
+                
+                // Auto-play immediately after thread loads if voices are ready
+                if (this.autoPlay && this.voicesLoaded && this.posts.length > 0) {
+                    setTimeout(() => {
+                        this.currentPostIndex = 0;
+                        this.startReading();
+                    }, 500); // Small delay to ensure UI is ready
+                }
             } else {
                 throw new Error('Invalid thread data structure');
             }
@@ -736,13 +942,15 @@ Note: Shortcuts work when not typing in input fields.`;
         if (this.currentPostIndex < this.posts.length - 1) {
             this.currentPostIndex++;
             
+            // Cancel current speech if any
             if (this.currentUtterance) {
                 this.speechSynthesis.cancel();
+                this.currentUtterance = null;
             }
             
             this.updateProgress();
             
-            if (this.isReading) {
+            if (this.isReading && !this.isTransitioning) {
                 await this.readCurrentPost();
             }
         } else {
@@ -762,8 +970,21 @@ Note: Shortcuts work when not typing in input fields.`;
         
         const currentThreadIndex = this.threads.findIndex(t => t.no === this.selectedThread);
         if (currentThreadIndex === -1 || currentThreadIndex >= this.threads.length - 1) {
-            console.log('No more threads to auto-play');
-            this.stopReading();
+            console.log('No more threads in current board, switching to random board...');
+            
+            // Switch to a random board and continue auto-play
+            try {
+                this.selectRandomBoard();
+                // Wait for new threads to load, then start auto-play
+                setTimeout(() => {
+                    if (this.threads && this.threads.length > 0) {
+                        this.selectThread(this.threads[0].no);
+                    }
+                }, 2000);
+            } catch (error) {
+                console.error('Failed to switch board:', error);
+                this.stopReading();
+            }
             return;
         }
         
@@ -784,6 +1005,70 @@ Note: Shortcuts work when not typing in input fields.`;
         } catch (error) {
             console.error('Failed to auto-play next thread:', error);
             this.stopReading();
+        }
+    }
+
+    async startAutoPlayWorkflow() {
+        console.log('🚀 Starting automatic workflow...');
+        
+        // Wait for voices to load
+        const waitForVoices = () => {
+            return new Promise((resolve) => {
+                if (this.voicesLoaded) {
+                    resolve();
+                    return;
+                }
+                
+                const checkVoices = () => {
+                    if (this.voicesLoaded) {
+                        resolve();
+                    } else {
+                        setTimeout(checkVoices, 100);
+                    }
+                };
+                checkVoices();
+            });
+        };
+        
+        try {
+            // Wait for voices to be ready
+            await waitForVoices();
+            console.log('✅ Voices loaded, proceeding with auto-play');
+            
+            // Select a random board
+            this.selectRandomBoard();
+            
+            // Wait a bit for board selection to complete
+            setTimeout(async () => {
+                try {
+                    // Load threads for the selected board
+                    await this.loadThreads();
+                    console.log('✅ Threads loaded, selecting first thread');
+                    
+                    // Select the first thread and start reading
+                    if (this.threads && this.threads.length > 0) {
+                        await this.selectThread(this.threads[0].no);
+                        
+                        // Start reading after a short delay
+                        setTimeout(async () => {
+                            if (this.posts && this.posts.length > 0) {
+                                console.log('🎤 Starting automatic reading...');
+                                this.currentPostIndex = 0;
+                                await this.readCurrentPost();
+                            }
+                        }, 1000);
+                    }
+                } catch (error) {
+                    console.error('Failed to start auto-play workflow:', error);
+                    // Retry after a delay
+                    setTimeout(() => this.startAutoPlayWorkflow(), 5000);
+                }
+            }, 1000);
+            
+        } catch (error) {
+            console.error('Failed to initialize auto-play workflow:', error);
+            // Retry after a delay
+            setTimeout(() => this.startAutoPlayWorkflow(), 5000);
         }
     }
 
@@ -840,49 +1125,91 @@ Note: Shortcuts work when not typing in input fields.`;
     
     async speakWithBrowserTTS(text, toneAnalysis = null) {
         return new Promise((resolve) => {
+            console.log('🗣️ Starting TTS with text length:', text?.length || 0);
+            
             if (!text || text.trim() === '') {
+                console.log('⚠️ No text to speak');
                 resolve();
                 return;
             }
+            
+            console.log('🔍 TTS Debug Info:');
+            console.log('   speechSynthesis available:', !!this.speechSynthesis);
+            console.log('   voices loaded:', this.voices.length);
+            console.log('   voiceSelect value:', this.voiceSelect?.value);
+            console.log('   voicesLoaded flag:', this.voicesLoaded);
             
             this.currentUtterance = new SpeechSynthesisUtterance(text);
             
             // Apply voice settings
             if (this.voiceSelect && this.voices.length > 0) {
                 const selectedVoiceIndex = parseInt(this.voiceSelect.value);
+                console.log('🎯 Selected voice index:', selectedVoiceIndex);
+                
                 if (selectedVoiceIndex >= 0 && selectedVoiceIndex < this.voices.length) {
                     this.currentUtterance.voice = this.voices[selectedVoiceIndex];
+                    console.log('✅ Voice set to:', this.voices[selectedVoiceIndex].name);
+                } else {
+                    console.warn('⚠️ Invalid voice index, using default');
                 }
+            } else {
+                console.warn('⚠️ No voice selector or no voices available');
             }
             
             // Apply rate, pitch, and volume
             if (this.rateSlider) {
                 this.currentUtterance.rate = parseFloat(this.rateSlider.value);
+                console.log('🎛️ Rate set to:', this.currentUtterance.rate);
             }
             if (this.pitchSlider) {
                 this.currentUtterance.pitch = parseFloat(this.pitchSlider.value);
+                console.log('🎛️ Pitch set to:', this.currentUtterance.pitch);
             }
             if (this.volumeSlider) {
                 this.currentUtterance.volume = parseFloat(this.volumeSlider.value);
+                console.log('🎛️ Volume set to:', this.currentUtterance.volume);
             }
             
             // Apply tone analysis if available
             if (toneAnalysis && this.toneAnalysisEnabled) {
                 this.applyToneToTTS(this.currentUtterance, toneAnalysis);
+                console.log('🎭 Tone analysis applied');
             }
             
+            this.currentUtterance.onstart = () => {
+                console.log('▶️ Speech started');
+            };
+            
+            let speechHandled = false;
+            
             this.currentUtterance.onend = () => {
-                this.handleSpeechEnd();
+                console.log('⏹️ Speech ended');
+                if (!speechHandled) {
+                    speechHandled = true;
+                    this.handleSpeechEnd();
+                }
                 resolve();
             };
             
             this.currentUtterance.onerror = (event) => {
-                console.error('Speech synthesis error:', event);
-                this.handleSpeechEnd();
+                console.error('❌ Speech synthesis error:', event);
+                console.error('   Error type:', event.error);
+                console.error('   Error message:', event.message);
+                if (!speechHandled) {
+                    speechHandled = true;
+                    this.handleSpeechEnd();
+                }
                 resolve();
             };
             
-            this.speechSynthesis.speak(this.currentUtterance);
+            console.log('🚀 Attempting to speak...');
+            try {
+                this.speechSynthesis.speak(this.currentUtterance);
+                console.log('✅ speak() called successfully');
+            } catch (error) {
+                console.error('❌ Error calling speak():', error);
+                resolve();
+            }
         });
     }
     
@@ -1036,19 +1363,26 @@ Note: Shortcuts work when not typing in input fields.`;
     }
     
     async handleSpeechEnd() {
-        if (!this.isReading) {
+        if (!this.isReading || this.isTransitioning) {
             return;
         }
         
-        // Play beep between posts
-        await this.playBeep();
+        this.isTransitioning = true;
         
-        // Wait for auto-play delay
-        setTimeout(async () => {
+        try {
+            // Play beep between posts and wait for it to complete
+            await this.playBeep();
+            
+            // Wait for auto-play delay before moving to next
+            await new Promise(resolve => setTimeout(resolve, this.autoPlayDelay));
+            
+            // Move to next post if still reading
             if (this.isReading) {
                 await this.skipToNext();
             }
-        }, this.autoPlayDelay);
+        } finally {
+            this.isTransitioning = false;
+        }
     }
 
     stripHtml(html) {
@@ -1134,6 +1468,43 @@ Note: Shortcuts work when not typing in input fields.`;
         ].join('. ') + '.';
         
         return `Post summary: ${summary}`;
+    }
+    
+    testTTS() {
+        console.log('🧪 Testing TTS functionality...');
+        console.log('🔍 speechSynthesis available:', !!window.speechSynthesis);
+        console.log('🔍 SpeechSynthesisUtterance available:', !!window.SpeechSynthesisUtterance);
+        
+        if (!window.speechSynthesis) {
+            console.error('❌ speechSynthesis not supported in this browser');
+            alert('Speech synthesis is not supported in this browser.');
+            return;
+        }
+        
+        const voices = window.speechSynthesis.getVoices();
+        console.log('🔍 Available voices:', voices.length);
+        voices.forEach((voice, index) => {
+            console.log(`   ${index}: ${voice.name} (${voice.lang})`);
+        });
+        
+        const testText = 'Hello, this is a test of the text to speech functionality.';
+        const utterance = new SpeechSynthesisUtterance(testText);
+        
+        utterance.onstart = () => {
+            console.log('✅ Test TTS started successfully');
+        };
+        
+        utterance.onend = () => {
+            console.log('✅ Test TTS completed successfully');
+        };
+        
+        utterance.onerror = (event) => {
+            console.error('❌ Test TTS error:', event.error);
+            alert(`TTS Error: ${event.error}`);
+        };
+        
+        console.log('🚀 Starting test speech...');
+        window.speechSynthesis.speak(utterance);
     }
 
     async playBeep() {
